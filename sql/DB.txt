@@ -1,0 +1,10 @@
+CREATE TABLE extractor.trades (
+id BIGINT AUTO_INCREMENT NOT NULL,
+exchange_id CHAR(20) NOT NULL,
+symbol CHAR(20) NOT NULL,
+trade_ts TIMESTAMP NOT NULL,
+amount NUMERIC(28,10) NOT NULL,
+price NUMERIC(28,10) NOT NULL,
+rate NUMERIC(28,10),
+period LONG,
+ CONSTRAINT PK_trades PRIMARY KEY (id));
