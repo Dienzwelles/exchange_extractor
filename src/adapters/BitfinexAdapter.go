@@ -28,9 +28,11 @@ func (ba BitfinexAdapter) getTrade() []models.Trade {
 		url = url + "&limit=" + strconv.Itoa(ba.FetchSize)
 	}
 
-	if ba.StartMs != 0 {
-		url = url + "&start=" + strconv.FormatInt(ba.StartMs, 0)
+	if ba.StartMs == 0 {
+		ba.StartMs = time.Now().Unix() * 1000
 	}
+
+	url = url + "&start=" + strconv.FormatInt(ba.StartMs, 10)
 
 	httpClient := http.Client{
 		Timeout: time.Second * 10, // Maximum of 2 secs

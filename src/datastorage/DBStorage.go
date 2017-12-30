@@ -15,7 +15,7 @@ func StoreTrades(trades []models.Trade){
 	}
 	defer db.Close()
 
-	db.LogMode(true)
+	//db.LogMode(true)
 	// Migrate the schema
 
 	//db.AutoMigrate(&Trade{})
