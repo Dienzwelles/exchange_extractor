@@ -1,4 +1,4 @@
-package src
+package main
 
 import (
 	/*"bufio"
@@ -10,15 +10,17 @@ import (
 
 	"github.com/goinggo/workpool"
 	"time"*/
-	"github.com/jinzhu/gorm"
+	//"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"time"
-	"encoding/json"
+	/*"encoding/json"
 	"log"
 	"net/http"
 	"io/ioutil"
 	"strconv"
+	"fmt"*/
+	"./adapters"
 )
 
 type BitfinexTrade struct {
@@ -29,7 +31,11 @@ type BitfinexTrade struct {
 	PERIOD int
 }
 
+
 func main() {
+
+	adapters.Instantiate()
+	/*
 	db, err := gorm.Open("mysql", "mysqlusr:Quid2017!@tcp(localhost)/extractor?charset=utf8&parseTime=True&loc=Local")
 	if err != nil {
 		panic("failed to connect database")

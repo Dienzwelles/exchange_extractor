@@ -1,4 +1,4 @@
-package src
+package old
 
 import (
 	"github.com/garyburd/redigo/redis"

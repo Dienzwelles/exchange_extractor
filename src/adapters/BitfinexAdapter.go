@@ -13,22 +13,27 @@ import (
 const BITFINEX  = "Bitfinex"
 
 type BitfinexAdapter struct{
-	*AbstractAdapter
+	AbstractAdapter
 	StartMs int64
 }
 
-func (ba *BitfinexAdapter) getData() []models.Trade {
-	url := "https://api.bitfinex.com/v2/trades/t" + ba.Symbol + "/hist?sort=1"
+func NewBitfinexAdapter() AdapterInterface {
+	return BitfinexAdapter{}
+}
+
+func (ba BitfinexAdapter) getTrade() []models.Trade {
+	var url string
+	url = "https://api.bitfinex.com/v2/trades/t" + ba.Symbol + "/hist?sort=1"
 	if ba.FetchSize > 0{
-		url := url + "&limit=" + strconv.Itoa(ba.FetchSize)
+		url = url + "&limit=" + strconv.Itoa(ba.FetchSize)
 	}
 
 	if ba.StartMs != 0 {
-		url := url + "&start=" + strconv.FormatInt(ba.StartMs, 0)
+		url = url + "&start=" + strconv.FormatInt(ba.StartMs, 0)
 	}
 
 	httpClient := http.Client{
-		Timeout: time.Second * 2, // Maximum of 2 secs
+		Timeout: time.Second * 10, // Maximum of 2 secs
 	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -55,7 +60,7 @@ func (ba *BitfinexAdapter) getData() []models.Trade {
 		log.Fatal(jsonErr)
 	}
 
-	var trades []models.Trade
+	var trades = make([]models.Trade, len(rawtrades))
 
 	for i := 0; i < len(rawtrades); i++ {
 		rawtrade := rawtrades[i]
@@ -64,16 +69,20 @@ func (ba *BitfinexAdapter) getData() []models.Trade {
 		trades[i] = models.Trade{Exchange_id: ba.ExchangeId, Symbol: ba.Symbol, Trade_ts: time.Unix(int64(rawtrade[1]/1000), 0), Amount: rawtrade[2], Price: rawtrade[3]}
 	}
 
-	log.Print("Got %d trades", len(trades))
+	log.Print("Got ", len(trades), " trades")
 	return trades;
 }
 
-func (ba *BitfinexAdapter) abstractInstantiateDefault(symbol string) *AbstractAdapter {
+func (ba BitfinexAdapter) instantiateDefault(symbol string) AdapterInterface {
 	ba.ExchangeId = BITFINEX
-	return ba.abstractInstantiateDefault(symbol)
+	aa := ba.abstractInstantiateDefault(symbol)
+	ba.AbstractAdapter = aa
+	return ba
 }
 
-func (ba *BitfinexAdapter) abstractInstantiate(Symbol string, FetchSize int, ReloadInterval int) *AbstractAdapter {
+func (ba BitfinexAdapter) instantiate(Symbol string, FetchSize int, ReloadInterval int) AdapterInterface {
 	ba.ExchangeId = BITFINEX
-	return ba.abstractInstantiate(Symbol, FetchSize, ReloadInterval)
+	aa := ba.abstractInstantiate(Symbol, FetchSize, ReloadInterval)
+	ba.AbstractAdapter = aa
+	return ba
 }

@@ -1,4 +1,4 @@
-package src
+package old
 
 import (
 	"fmt"
@@ -32,7 +32,6 @@ func main() {
 
 	jobPool.QueueJob("main", &WorkProvider1{"Normal Priority : 1"}, false)
 
-	jobPool.
 	fmt.Printf("*******> QW: %d AR: %d\n",
 		jobPool.QueuedJobs(),
 		jobPool.ActiveRoutines())
