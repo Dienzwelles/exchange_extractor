@@ -43,6 +43,11 @@ func Instantiate() {
 		var a AdapterInterface
 		a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
 
+		//bittrex istance
+		var br AdapterInterface
+		br = NewBittrexAdapter().instantiateDefault("BTC-DOGE")
+
+
 		adapterWork := AdapterWork {
 			Adapter: a,
 			WP: workPool,
@@ -59,6 +64,26 @@ func Instantiate() {
 			fmt.Printf("ERROR: %s\n", err)
 			time.Sleep(100 * time.Millisecond)
 		}
+
+
+		//adapter bittrex
+		brAdapterWork := AdapterWork {
+			Adapter: br,
+			WP: workPool,
+		}
+
+		brDataExtractorWork := DataExtractorWork{}
+
+		if err := workPool.PostWork("adapterWork", &brAdapterWork); err != nil {
+			fmt.Printf("ERROR: %s\n", err)
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		if err := workPool.PostWork("dataExtractorWork", &brDataExtractorWork); err != nil {
+			fmt.Printf("ERROR: %s\n", err)
+			time.Sleep(100 * time.Millisecond)
+		}
+
 
 		if shutdown == true {
 			return
