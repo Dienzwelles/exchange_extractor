@@ -8,3 +8,10 @@ price NUMERIC(28,10) NOT NULL,
 rate NUMERIC(28,10),
 period LONG,
  CONSTRAINT PK_trades PRIMARY KEY (id));
+
+
+CREATE TABLE extractor.markets (
+exchange_id CHAR(20) NOT NULL,
+symbol CHAR(20) NOT NULL,
+evaluated BOOL NOT NULL,
+CONSTRAINT PK_exchange_id PRIMARY KEY (exchange_id, symbol));

@@ -10,17 +10,24 @@ import (
 	"../queuemanager"
 )
 
+var shutdown bool
+
 type AdapterWork struct {
 	Adapter AdapterInterface
 	WP *workpool.WorkPool
 }
 
 func (mw *AdapterWork) DoWork(workRoutine int) {
+	fmt.Printf("*******> WR: %d \n", workRoutine)
 	for {
 		trades := mw.Adapter.getTrade()
 		queuemanager.Enqueue(trades)
 		time.Sleep(4 * time.Second)
+		if shutdown == true {
+			return
+		}
 	}
+
 }
 
 type DataExtractorWork struct {
@@ -36,16 +43,14 @@ func Instantiate() {
 
 	workPool := workpool.New(runtime.NumCPU(), 800)
 
-	shutdown := false // Race Condition, Sorry
+	shutdown = false // Race Condition, Sorry
 
 	go func() {
+
 
 		var a AdapterInterface
 		a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
 
-		//bittrex istance
-		var br AdapterInterface
-		br = NewBittrexAdapter().instantiateDefault("BTC-DOGE")
 
 
 		adapterWork := AdapterWork {
@@ -66,23 +71,32 @@ func Instantiate() {
 		}
 
 
+
+		//bittrex istance
+		var br AdapterInterface
+		br = NewBittrexAdapter().instantiateDefault("BTC-DOGE")
+
+
 		//adapter bittrex
 		brAdapterWork := AdapterWork {
 			Adapter: br,
 			WP: workPool,
 		}
 
+
+
+		if err := workPool.PostWork("brAdapterWork", &brAdapterWork); err != nil {
+			fmt.Printf("ERROR: %s\n", err)
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		/*
 		brDataExtractorWork := DataExtractorWork{}
 
-		if err := workPool.PostWork("adapterWork", &brAdapterWork); err != nil {
+		if err := workPool.PostWork("DataExtractorWork", &brDataExtractorWork); err != nil {
 			fmt.Printf("ERROR: %s\n", err)
 			time.Sleep(100 * time.Millisecond)
-		}
-
-		if err := workPool.PostWork("dataExtractorWork", &brDataExtractorWork); err != nil {
-			fmt.Printf("ERROR: %s\n", err)
-			time.Sleep(100 * time.Millisecond)
-		}
+		}*/
 
 
 		if shutdown == true {
@@ -98,5 +112,7 @@ func Instantiate() {
 	shutdown = true
 
 	fmt.Println("Shutting Down")
-	workPool.Shutdown("routine")
+
+	workPool.Shutdown("adapterWork")
+	workPool.Shutdown("brAdapterWork")
 }

@@ -36,7 +36,7 @@ func NewConnection() ConnectionEl{
 
 
 func GetConnection(conn ConnectionEl) *sql.DB  {
-	db, err := sql.Open("mysql", conn.User + ":" + conn.Pass + "@tcp(" + conn.Host + ":" + conn.Port + ")/" + conn.DbName)
+	db, err := sql.Open("mysql", conn.User + ":" + conn.Pass + "@tcp(" + conn.Host + ":" + conn.Port + ")/" + conn.DbName + "?charset=utf8&parseTime=True&loc=Local")
 	if err != nil {
 		panic(err.Error())  // Just for example purpose. You should use proper error handling instead of panic
 	}

@@ -1,27 +1,13 @@
 package main
 
 import (
-	/*"bufio"
-	"fmt"
-	"os"
-	"runtime"
-	"strconv"
-
-
-	"github.com/goinggo/workpool"
-	"time"*/
-	//"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"time"
-	/*"encoding/json"
-	"log"
-	"net/http"
-	"io/ioutil"
-	"strconv"
-	"fmt"*/
 	"./adapters"
+	"./exchanges"
 )
+
 
 type BitfinexTrade struct {
 	MTS time.Time
@@ -33,7 +19,7 @@ type BitfinexTrade struct {
 
 
 func main() {
-
+	exchanges.Instantiate()
 	adapters.Instantiate()
 	/*
 	db, err := gorm.Open("mysql", "mysqlusr:Quid2017!@tcp(localhost)/extractor?charset=utf8&parseTime=True&loc=Local")
