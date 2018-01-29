@@ -78,3 +78,25 @@ func StoreMarkets(markets []models.Market) {
 	}
 
 }
+
+
+
+
+func GetMarkets(exchange_id string) []string{
+
+	conn := NewConnection()
+	db := GetConnectionORM(conn)
+
+	defer db.Close()
+
+
+	rows, _ := db.Table("markets").Select("symbol").Where("exchange_id = ? and evaluated = 1 ", exchange_id).Rows()
+	var markets []string
+	for rows.Next() {
+		var symbol string
+		rows.Scan(&symbol)
+		markets = append(markets, symbol)
+	}
+
+	return markets
+}

@@ -46,38 +46,43 @@ func (ba BittrexAdapter) getTrade() []models.Trade {
 	//url = "https://bittrex.com/api/v1.1/public/getmarkethistory?market=BTC-DOGE"
 	trd := []models.Trade{}
 
+	//get list of markets
+	symbols := datastorage.GetMarkets(BITTREX)
+	_ = symbols
 	// Bittrex client
 	bittrex := bittrex.New(API_KEY, API_SECRET)
+	//trade_symbol := ba.Symbol
 
-	// Market history
-	trade_symbol := ba.Symbol
+	for _, symbol := range symbols {
+		// Market history
+		trade_symbol := symbol
+		ts_last_transaction = GetLastID(symbol)
 
-	//get trades
-	marketHistory, err := bittrex.GetMarketHistory(trade_symbol)
-	max_ts := ts_last_transaction
-	//read single trade and stored on local structure
-	for _, trade := range marketHistory {
-		fmt.Println(err, trade.Timestamp.String(), trade.Quantity, trade.Price, trade.Total, trade.OrderType)
-		if !trade.Timestamp.Time.After(max_ts) {
-			continue
+		//get trades
+		marketHistory, err := bittrex.GetMarketHistory(trade_symbol)
+		max_ts := ts_last_transaction
+		//read single trade and stored on local structure
+		for _, trade := range marketHistory {
+			fmt.Println(err, trade.Timestamp.String(), trade.Quantity, trade.Price, trade.Total, trade.OrderType)
+			if !trade.Timestamp.Time.After(max_ts) {
+				continue
+			}
+			if trade.Timestamp.Time.After(ts_last_transaction) {
+				ts_last_transaction = trade.Timestamp.Time
+			}
+			q, _ := strconv.ParseFloat(trade.Quantity.String(), 64)
+			p, _ := strconv.ParseFloat(trade.Price.String(), 64)
+
+			a := models.Trade{Exchange_id: ba.ExchangeId, Symbol: trade_symbol, Trade_ts: trade.Timestamp.Time, Amount: q, Price: p, Rate: 0, Period: 0}
+
+			trd = AddItem(trd, a)
 		}
-		if trade.Timestamp.Time.After(ts_last_transaction) {
-			ts_last_transaction=trade.Timestamp.Time
-		}
-		q, _ := strconv.ParseFloat(trade.Quantity.String(), 64)
-		p, _ := strconv.ParseFloat(trade.Price.String(), 64)
-
-		a :=  models.Trade{Exchange_id: ba.ExchangeId , Symbol: trade_symbol, Trade_ts: trade.Timestamp.Time , Amount: q , Price: p , Rate: 0, Period: 0 }
-
-		trd = AddItem(trd, a)
 	}
-
 	return trd
 }
 
 func (ba BittrexAdapter) instantiateDefault(symbol string) AdapterInterface {
 	ba.ExchangeId = BITTREX
-	ts_last_transaction = GetLastID(symbol)
 	aa := ba.abstractInstantiateDefault(symbol)
 	ba.AbstractAdapter = aa
 	return ba
