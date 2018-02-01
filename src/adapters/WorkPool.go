@@ -114,5 +114,5 @@ func Instantiate() {
 	fmt.Println("Shutting Down")
 
 	workPool.Shutdown("adapterWork")
-	workPool.Shutdown("brAdapterWork")
+	//workPool.Shutdown("brAdapterWork")
 }

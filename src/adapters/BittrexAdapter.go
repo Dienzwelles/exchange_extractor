@@ -17,9 +17,11 @@ import (
 )
 
 const BITTREX  = "Bittrex"
-//contiene l'ultimo timestamp archiviato
-var ts_last_transaction time.Time
 
+//contiene l'ultimo timestamp archiviato
+var ts_last_transaction = map[string]time.Time{}
+
+//parametri base per chiamare api bitrex
 const (
 	API_KEY    = ""
 	API_SECRET = ""
@@ -43,39 +45,55 @@ func AddItem(trades []models.Trade, item models.Trade) []models.Trade {
 
 func (ba BittrexAdapter) getTrade() []models.Trade {
 
-	//url = "https://bittrex.com/api/v1.1/public/getmarkethistory?market=BTC-DOGE"
+	// esempio chiamata base
+	// url = "https://bittrex.com/api/v1.1/public/getmarkethistory?market=BTC-DOGE"
 	trd := []models.Trade{}
 
-	//get list of markets
+	//ritorna la lista dei mercati attualmente attivi
 	symbols := datastorage.GetMarkets(BITTREX)
-	_ = symbols
+
 	// Bittrex client
 	bittrex := bittrex.New(API_KEY, API_SECRET)
-	//trade_symbol := ba.Symbol
 
+	// Per ogni mercato attivo recupera ultimi movimenti
 	for _, symbol := range symbols {
-		// Market history
-		trade_symbol := symbol
-		ts_last_transaction = GetLastID(symbol)
 
-		//get trades
-		marketHistory, err := bittrex.GetMarketHistory(trade_symbol)
-		max_ts := ts_last_transaction
-		//read single trade and stored on local structure
+		// Market history
+		/*if value, ok := ts_last_transaction[symbol]; ok {
+			fmt.Println("value: ", value)
+		} else {
+			fmt.Println("key not found")
+		}*/
+
+		// recupero ultimo time stamp inserito per il mercato in esame
+		ts_last_transaction[symbol] = GetLastID(symbol)
+
+		//recupero ultimi scambi
+		marketHistory, err := bittrex.GetMarketHistory(symbol)
+		max_ts := ts_last_transaction[symbol]
+
+		//leggo i singoli scambi e li storicizzo in un apposita struttura
 		for _, trade := range marketHistory {
-			fmt.Println(err, trade.Timestamp.String(), trade.Quantity, trade.Price, trade.Total, trade.OrderType)
-			if !trade.Timestamp.Time.After(max_ts) {
+			if trade.Timestamp.Time.Before(max_ts) || trade.Timestamp.Time.Equal(max_ts) {
 				continue
 			}
-			if trade.Timestamp.Time.After(ts_last_transaction) {
-				ts_last_transaction = trade.Timestamp.Time
+			if trade.Timestamp.Time.After(ts_last_transaction[symbol]) {
+				ts_last_transaction[symbol] = trade.Timestamp.Time
 			}
 			q, _ := strconv.ParseFloat(trade.Quantity.String(), 64)
+			if trade.OrderType == "SELL"{
+				q = -q
+				fmt.Println(q)
+			}
 			p, _ := strconv.ParseFloat(trade.Price.String(), 64)
 
-			a := models.Trade{Exchange_id: ba.ExchangeId, Symbol: trade_symbol, Trade_ts: trade.Timestamp.Time, Amount: q, Price: p, Rate: 0, Period: 0}
+			a := models.Trade{Exchange_id: ba.ExchangeId, Symbol: symbol, Trade_ts: trade.Timestamp.Time, Amount: q, Price: p, Rate: 0, Period: 0}
 
-			trd = AddItem(trd, a)
+			//se il record è nuovo allora lo inserisco
+			if CheckRecord(a.Symbol, max_ts , a.Amount) {
+				fmt.Println(err, trade.Timestamp.String(), trade.Quantity, trade.Price, trade.Total, trade.OrderType)
+				trd = AddItem(trd, a)
+			}
 		}
 	}
 	return trd
@@ -125,4 +143,35 @@ func GetLastID(symbol string) time.Time {
 	}
 
 	return tm_st
+}
+
+func CheckRecord (symbol string, time_last time.Time, quantity float64) bool {
+	conn := datastorage.NewConnection()
+	db := datastorage.GetConnection(conn)
+	defer db.Close()
+
+	type el struct {
+		sy string
+		ts time.Time
+		am float64
+	}
+
+	var record el
+
+	rows, err := db.Query("select symbol, trade_ts, amount from trades where exchange_id = '" + BITTREX + "' and symbol = ? and trade_ts = ? group by symbol, trade_ts, amount ", symbol, time_last)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next(){
+		err:=rows.Scan(&record.sy, &record.ts, &record.am)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if record.am == quantity {
+			return false
+		}
+	}
+
+	return true
 }

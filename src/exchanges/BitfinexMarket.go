@@ -5,7 +5,7 @@ import (
 	_ "log"
 	_ "io/ioutil"
 	_ "encoding/json"
-	"fmt"
+	_ "fmt"
 	_ "github.com/shopspring/decimal"
 	_ "time"
 	_ "github.com/jinzhu/gorm"
@@ -71,11 +71,8 @@ func (ba BitfinexMarket) getMarkets() []models.Market {
 	}
 
 
-	//get trades
-	//markets, err := bittrex.GetMarkets()
-
 	for _, market := range markets {
-		fmt.Println(err, market)
+		//fmt.Println(err, market)
 
 
 
