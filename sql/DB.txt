@@ -7,6 +7,7 @@ amount NUMERIC(28,10) NOT NULL,
 price NUMERIC(28,10) NOT NULL,
 rate NUMERIC(28,10),
 period LONG,
+tid CHAR(20),
  CONSTRAINT PK_trades PRIMARY KEY (id));
 
 
@@ -15,3 +16,32 @@ exchange_id CHAR(20) NOT NULL,
 symbol CHAR(20) NOT NULL,
 evaluated BOOL NOT NULL,
 CONSTRAINT PK_exchange_id PRIMARY KEY (exchange_id, symbol));
+
+
+CREATE TABLE extractor.profitabilities (
+exchange_id CHAR(20) NOT NULL,
+origin CHAR(20) NOT NULL,
+transitory_1 CHAR(20) NOT NULL,
+transitory_2 CHAR(20) NOT NULL,
+target CHAR(20) NOT NULL,
+profittability NUMERIC(28,10) NOT NULL,
+sell_limit NUMERIC(28,10) NOT NULL,
+buy_limit NUMERIC(28,10) NOT NULL,
+cross_origin_target NUMERIC(28,10) NOT NULL,
+cross_int1_target NUMERIC(28,10) NOT NULL,
+cross_int1_origin NUMERIC(28,10) NOT NULL,
+fee NUMERIC(28,10) NOT NULL,
+CONSTRAINT PK_exchange_id PRIMARY KEY (exchange_id, origin, transitory_1, transitory_2, target));
+
+
+
+CREATE TABLE extractor.books (
+id BIGINT AUTO_INCREMENT NOT NULL,
+exchange_id CHAR(20) NOT NULL,
+symbol CHAR(20) NOT NULL,
+type CHAR(20) NOT NULL,
+book_ts TIMESTAMP NOT NULL,
+amount NUMERIC(28,10) NOT NULL,
+price NUMERIC(28,10) NOT NULL,
+ CONSTRAINT PK_trades PRIMARY KEY (id));
+
