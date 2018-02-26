@@ -41,7 +41,7 @@ func (mw *DataExtractorWork) DoWork(workRoutine int) {
 func Instantiate() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	workPool := workpool.New(runtime.NumCPU(), 800)
+	workPool := workpool.New(4, 800)
 
 	shutdown = false // Race Condition, Sorry
 
@@ -49,7 +49,7 @@ func Instantiate() {
 
 
 		var a AdapterInterface
-		a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
+			a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
 
 
 
@@ -65,6 +65,8 @@ func Instantiate() {
 			time.Sleep(100 * time.Millisecond)
 		}
 
+
+//		dataExtractorWork := DataExtractorWork{}
 		if err := workPool.PostWork("dataExtractorWork", &dataExtractorWork); err != nil {
 			fmt.Printf("ERROR: %s\n", err)
 			time.Sleep(100 * time.Millisecond)
@@ -90,13 +92,27 @@ func Instantiate() {
 			time.Sleep(100 * time.Millisecond)
 		}
 
-		/*
-		brDataExtractorWork := DataExtractorWork{}
 
-		if err := workPool.PostWork("DataExtractorWork", &brDataExtractorWork); err != nil {
+
+		//okex istance
+/*		var ok AdapterInterface
+		ok = NewOkexAdapter().instantiateDefault("ltc_btc")
+
+
+		//adapter bittrex
+		okAdapterWork := AdapterWork {
+			Adapter: ok,
+			WP: workPool,
+		}
+
+
+
+		if err := workPool.PostWork("okAdapterWork", &okAdapterWork); err != nil {
 			fmt.Printf("ERROR: %s\n", err)
 			time.Sleep(100 * time.Millisecond)
-		}*/
+		}
+
+*/
 
 
 		if shutdown == true {

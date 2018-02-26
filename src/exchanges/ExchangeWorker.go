@@ -15,6 +15,7 @@ func Instantiate() {
 	b = NewBitfinexMarket().instantiateDefault()
 
 	markets = append(markets, b.getMarkets()...)
+	//markets := b.getMarkets()
 
 	//store market code
 	datastorage.StoreMarkets(markets)

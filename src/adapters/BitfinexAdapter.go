@@ -8,9 +8,18 @@ import (
 	"log"
 	"io/ioutil"
 	"encoding/json"
+	"../datastorage"
+	_ "fmt"
+	"strings"
 )
 
 const BITFINEX  = "Bitfinex"
+
+//contiene timestamp ultima richiesta fatta per symbol
+//sposto i ragionamenti prima fatti su StartMs su questa
+//struttura
+var ts_bitfinex_transactions = map[string]int64{}
+
 
 type BitfinexAdapter struct{
 	AbstractAdapter
@@ -22,57 +31,78 @@ func NewBitfinexAdapter() AdapterInterface {
 }
 
 func (ba BitfinexAdapter) getTrade() []models.Trade {
+
+	//movimenti che dovranno essere ritornati
+	trd := []models.Trade{}
+
+	//ritorna la lista dei mercati attualmente attivi
+	symbols := datastorage.GetMarkets(BITFINEX)
+
 	var url string
-	url = "https://api.bitfinex.com/v2/trades/t" + ba.Symbol + "/hist?sort=1"
-	if ba.FetchSize > 0{
-		url = url + "&limit=" + strconv.Itoa(ba.FetchSize)
+
+	// Per ogni mercato attivo recupera ultimi movimenti
+	for _, symbol := range symbols {
+		url = "https://api.bitfinex.com/v2/trades/t" + strings.ToUpper(symbol) + "/hist?sort=1"
+		if ba.FetchSize > 0 {
+			url = url + "&limit=" + strconv.Itoa(ba.FetchSize)
+		}
+
+		if ts_bitfinex_transactions[symbol] == 0 {
+			ts_bitfinex_transactions[symbol] = time.Now().Unix() * 1000
+		}
+
+		url = url + "&start=" + strconv.FormatInt(ts_bitfinex_transactions[symbol], 10)
+
+		httpClient := http.Client{
+			Timeout: time.Second * 10, // Maximum of 2 secs
+		}
+
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		req.Header.Set("User-Agent", "bitfinex-extractor")
+		res, getErr := httpClient.Do(req)
+
+		if getErr != nil {
+			log.Fatal(getErr)
+		}
+
+		body, readErr := ioutil.ReadAll(res.Body)
+		if readErr != nil {
+			log.Fatal(readErr)
+		}
+
+		var rawtrades [][4]float64
+		jsonErr := json.Unmarshal(body, &rawtrades)
+		if jsonErr != nil {
+			log.Fatal(jsonErr)
+		}
+
+		var trades= make([]models.Trade, len(rawtrades))
+
+		for i := 0; i < len(rawtrades); i++ {
+			rawtrade := rawtrades[i]
+
+			ts_bitfinex_transactions[symbol] = int64(rawtrade[1])
+			trades[i] = models.Trade{Exchange_id: ba.ExchangeId, Symbol: strings.ToUpper(symbol), Trade_ts: time.Unix(int64(rawtrade[1]/1000), 0), Amount: rawtrade[2], Price: rawtrade[3]}
+		}
+
+		for _, trade := range trades{
+
+			//se il record è nuovo allora lo inserisco
+			if CheckBitfinexRecord(trade.Symbol, trade.Trade_ts , trade.Amount) {
+				trd = AddItem(trd, trade)
+			}
+		}
+
+		log.Print("Got ", len(trades), " trades")
+
 	}
 
-	if ba.StartMs == 0 {
-		ba.StartMs = time.Now().Unix() * 1000
-	}
-
-	url = url + "&start=" + strconv.FormatInt(ba.StartMs, 10)
-
-	httpClient := http.Client{
-		Timeout: time.Second * 10, // Maximum of 2 secs
-	}
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	req.Header.Set("User-Agent", "bitfinex-extractor")
-	res, getErr := httpClient.Do(req)
-
-	if getErr != nil {
-		log.Fatal(getErr)
-	}
-
-	body, readErr := ioutil.ReadAll(res.Body)
-	if readErr != nil {
-		log.Fatal(readErr)
-	}
-
-	var rawtrades [][4]float64
-	jsonErr := json.Unmarshal(body, &rawtrades)
-	if jsonErr != nil {
-		log.Fatal(jsonErr)
-	}
-
-	var trades = make([]models.Trade, len(rawtrades))
-
-	for i := 0; i < len(rawtrades); i++ {
-		rawtrade := rawtrades[i]
-
-		ba.StartMs = int64(rawtrade[1])
-		trades[i] = models.Trade{Exchange_id: ba.ExchangeId, Symbol: ba.Symbol, Trade_ts: time.Unix(int64(rawtrade[1]/1000), 0), Amount: rawtrade[2], Price: rawtrade[3]}
-	}
-
-	log.Print("Got ", len(trades), " trades")
-	return trades;
+	return trd;
 }
 
 func (ba BitfinexAdapter) instantiateDefault(symbol string) AdapterInterface {
@@ -87,4 +117,38 @@ func (ba BitfinexAdapter) instantiate(Symbol string, FetchSize int, ReloadInterv
 	aa := ba.abstractInstantiate(Symbol, FetchSize, ReloadInterval)
 	ba.AbstractAdapter = aa
 	return ba
+}
+
+
+
+
+func CheckBitfinexRecord (symbol string, time_last time.Time, quantity float64) bool {
+	conn := datastorage.NewConnection()
+	db := datastorage.GetConnection(conn)
+	defer db.Close()
+
+	type el struct {
+		sy string
+		ts time.Time
+		am float64
+	}
+
+	var record el
+
+	rows, err := db.Query("select symbol, trade_ts, amount from trades where exchange_id = '" + BITFINEX + "' and symbol = ? and trade_ts = ? group by symbol, trade_ts, amount ", symbol, time_last)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next(){
+		err:=rows.Scan(&record.sy, &record.ts, &record.am)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if record.am == quantity {
+			return false
+		}
+	}
+
+	return true
 }

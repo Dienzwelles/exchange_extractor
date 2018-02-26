@@ -11,6 +11,6 @@ type Trade struct {
 	Price float64
 	Rate float64
 	Period int
+	Tid string
 }
-
 

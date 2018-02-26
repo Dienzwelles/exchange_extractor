@@ -7,6 +7,7 @@ import (
 	"log"
 	_ "github.com/jinzhu/gorm"
 	_ "fmt"
+	_ "strings"
 )
 
 func StoreTrades(trades []models.Trade){
