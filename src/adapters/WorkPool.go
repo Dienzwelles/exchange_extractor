@@ -8,6 +8,7 @@ import (
 	"time"
 	"github.com/goinggo/workpool"
 	"../queuemanager"
+	"../datastorage"
 )
 
 var shutdown bool
@@ -38,6 +39,36 @@ func (mw *DataExtractorWork) DoWork(workRoutine int) {
 	queuemanager.Dequeue()
 }
 
+
+type AdapterBookWork struct {
+	Adapter AdapterInterface
+	WP *workpool.WorkPool
+}
+
+func (mw *AdapterBookWork) DoWork(workRoutine int) {
+	fmt.Printf("*******> WR: %d \n", workRoutine)
+	for {
+		books := mw.Adapter.getAggregateBooks()
+		queuemanager.BooksEnqueue(books)
+		time.Sleep(4 * time.Second)
+		if shutdown == true {
+			return
+		}
+	}
+
+}
+
+
+type DataExtractorBooksWork struct {
+	WP *workpool.WorkPool
+}
+
+func (mw *DataExtractorBooksWork) DoWork(workRoutine int) {
+	queuemanager.BooksDequeue()
+}
+
+
+
 func Instantiate() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -47,15 +78,12 @@ func Instantiate() {
 
 	go func() {
 
-
 		var a AdapterInterface
-			a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
+		a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
 
-
-
-		adapterWork := AdapterWork {
+		adapterWork := AdapterWork{
 			Adapter: a,
-			WP: workPool,
+			WP:      workPool,
 		}
 
 		dataExtractorWork := DataExtractorWork{}
@@ -65,37 +93,29 @@ func Instantiate() {
 			time.Sleep(100 * time.Millisecond)
 		}
 
-
-//		dataExtractorWork := DataExtractorWork{}
+		//		dataExtractorWork := DataExtractorWork{}
 		if err := workPool.PostWork("dataExtractorWork", &dataExtractorWork); err != nil {
 			fmt.Printf("ERROR: %s\n", err)
 			time.Sleep(100 * time.Millisecond)
 		}
 
-
-
 		//bittrex istance
 		var br AdapterInterface
 		br = NewBittrexAdapter().instantiateDefault("BTC-DOGE")
 
-
 		//adapter bittrex
-		brAdapterWork := AdapterWork {
+		brAdapterWork := AdapterWork{
 			Adapter: br,
-			WP: workPool,
+			WP:      workPool,
 		}
-
-
 
 		if err := workPool.PostWork("brAdapterWork", &brAdapterWork); err != nil {
 			fmt.Printf("ERROR: %s\n", err)
 			time.Sleep(100 * time.Millisecond)
 		}
 
-
-
 		//okex istance
-/*		var ok AdapterInterface
+		/*		var ok AdapterInterface
 		ok = NewOkexAdapter().instantiateDefault("ltc_btc")
 
 
@@ -121,6 +141,44 @@ func Instantiate() {
 
 	}()
 
+
+
+	/*book section
+	  1 - get the list of the symbol for each exchange
+	  2 - generete a go routine for each symbol
+	 */
+
+	symbols := datastorage.GetMarkets(BITFINEX)
+	for _, symbol := range symbols {
+		go func(symbol string) {
+			//adapter istance
+			var a AdapterInterface
+			a = NewBitfinexAdapter().instantiateDefault(symbol)
+
+			adapterBookWork := AdapterBookWork{
+				Adapter: a,
+				WP:      workPool,
+			}
+
+			if err := workPool.PostWork("adapterBookWork", &adapterBookWork); err != nil {
+				fmt.Printf("ERROR: %s\n", err)
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			dataExtractorBooksWork := DataExtractorBooksWork{}
+			if err := workPool.PostWork("dataExtractorBooksWork", &dataExtractorBooksWork); err != nil {
+				fmt.Printf("ERROR: %s\n", err)
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			if shutdown == true {
+				return
+			}
+
+		}(symbol)
+	}
+
+
 	fmt.Println("Hit any key to exit")
 	reader := bufio.NewReader(os.Stdin)
 	reader.ReadString('\n')
@@ -130,5 +188,5 @@ func Instantiate() {
 	fmt.Println("Shutting Down")
 
 	workPool.Shutdown("adapterWork")
-	//workPool.Shutdown("brAdapterWork")
+
 }

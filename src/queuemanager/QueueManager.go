@@ -24,7 +24,7 @@ func Enqueue(trades []models.Trade){
 	defer ch.Close()
 
 
-	q := getQueue(ch)
+	q := getQueue(ch, "trades")
 	trades2B, _ := json.Marshal(trades)
 	body := string(trades2B)
 	err := ch.Publish(
@@ -52,9 +52,9 @@ func getChannel(conn *amqp.Connection) (*amqp.Channel){
 	return ch
 }
 
-func getQueue(channel *amqp.Channel) (amqp.Queue){
+func getQueue(channel *amqp.Channel, name string) (amqp.Queue){
 	q, err := channel.QueueDeclare(
-		"trades", // name
+		name, // name
 		true,   // durable
 		false,   // delete when unused
 		false,   // exclusive
@@ -73,7 +73,7 @@ func Dequeue(){
 	ch := getChannel(conn)
 	defer ch.Close()
 
-	q := getQueue(ch)
+	q := getQueue(ch, "trades")
 
 	msgs, err := ch.Consume(
 		q.Name, // queue
@@ -98,6 +98,68 @@ func Dequeue(){
 			}
 
 			datastorage.StoreTrades(trades)
+		}
+	}()
+	<-forever
+}
+
+
+func BooksEnqueue(books []models.AggregateBook){
+	conn := getConnection()
+	defer conn.Close()
+
+	ch := getChannel(conn)
+	defer ch.Close()
+
+
+	q := getQueue(ch, "books")
+	books2B, _ := json.Marshal(books)
+	body := string(books2B)
+	err := ch.Publish(
+		"",     // exchange
+		q.Name, // routing key
+		true,  // mandatory
+		false,  // immediate
+		amqp.Publishing {
+			ContentType: "text/plain",
+			Body:        []byte(body),
+		})
+	failOnError(err, "Failed to publish a message type books")
+}
+
+
+func BooksDequeue(){
+	conn := getConnection()
+	defer conn.Close()
+
+	ch := getChannel(conn)
+	defer ch.Close()
+
+	q := getQueue(ch, "books")
+
+	msgs, err := ch.Consume(
+		q.Name, // queue
+		"",     // consumer
+		true,   // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+	failOnError(err, "Failed to register a consumer type books")
+
+	forever := make(chan bool)
+
+	go func() {
+		for d := range msgs {
+			log.Printf("Received a message: %s", d.Body)
+			var books []models.AggregateBook
+			jsonErr := json.Unmarshal(d.Body, &books)
+			if jsonErr != nil {
+				log.Fatal(jsonErr)
+			}
+
+			datastorage.StoreBooks(books)
 		}
 	}()
 	<-forever

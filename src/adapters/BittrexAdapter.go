@@ -99,6 +99,14 @@ func (ba BittrexAdapter) getTrade() []models.Trade {
 	return trd
 }
 
+func (ba BittrexAdapter) getAggregateBooks() []models.AggregateBook {
+
+	//movimenti che dovranno essere ritornati
+	bks := []models.AggregateBook{}
+	return bks
+}
+
+
 func (ba BittrexAdapter) instantiateDefault(symbol string) AdapterInterface {
 	ba.ExchangeId = BITTREX
 	aa := ba.abstractInstantiateDefault(symbol)

@@ -11,7 +11,10 @@ import (
 	"../datastorage"
 	_ "fmt"
 	"strings"
+	_"github.com/shopspring/decimal"
+	_"github.com/thrasher-/gocryptotrader/exchanges/bitfinex"
 )
+
 
 const BITFINEX  = "Bitfinex"
 
@@ -102,7 +105,82 @@ func (ba BitfinexAdapter) getTrade() []models.Trade {
 
 	}
 
-	return trd;
+	return trd
+}
+
+func (ba BitfinexAdapter) getAggregateBooks() []models.AggregateBook {
+
+	//movimenti che dovranno essere ritornati
+
+	var url string
+	url = "https://api.bitfinex.com/v2/book/t" + strings.ToUpper(ba.Symbol) + "/P0"
+
+
+
+/*
+	books := []models.AggregateBook{}
+	for _, rawbook := range rawbooks{
+		//p, _:= strconv.ParseFloat(rawbook, 64)
+		p := rawbook.Price
+		// := rawbook[0]
+		//c, _:= strconv.ParseFloat(rawbook, 64)
+		//c, _:= strconv.ParseFloat(rawbook.Count, 64)
+		c := float64(rawbook.Count)
+		//c := rawbook[1]
+		//a, _:= strconv.ParseFloat(rawbook, 64)
+		//a, _:= strconv.ParseFloat(rawbook.Amount, 64)
+		a := rawbook.Amount
+		//a := rawbook[2]
+		book := models.AggregateBook{Exchange_id: ba.ExchangeId, Symbol: strings.ToUpper(ba.Symbol), Price: p, Count: c, Amount: a}
+		books = append(books, book)
+	}
+
+
+
+
+	log.Print("Got ", len(books), " books")
+
+*/
+
+	log.Println(url)
+
+
+	httpClient := http.Client{
+		Timeout: time.Second * 10, // Maximum of 2 secs
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	req.Header.Set("User-Agent", "bitfinex-extractor")
+	res, getErr := httpClient.Do(req)
+
+	if getErr != nil {
+		log.Fatal(getErr)
+	}
+	body, readErr := ioutil.ReadAll(res.Body)
+	if readErr != nil {
+		log.Fatal(readErr)
+	}
+
+	var rawbooks [][3]float64
+	jsonErr := json.Unmarshal(body,  &rawbooks)
+	if jsonErr != nil {
+		log.Fatal(jsonErr)
+	}
+
+	log.Println(rawbooks)
+
+	books := []models.AggregateBook{}
+	for _, rawbook := range rawbooks{
+		book := models.AggregateBook{Exchange_id: ba.ExchangeId, Symbol: strings.ToUpper(ba.Symbol), Price: rawbook[0], Count: rawbook[1], Amount: rawbook[2]}
+		books = append(books, book)
+	}
+
+	return books
 }
 
 func (ba BitfinexAdapter) instantiateDefault(symbol string) AdapterInterface {

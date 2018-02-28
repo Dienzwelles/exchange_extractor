@@ -106,7 +106,7 @@ func (ba OkexAdapter) getTrade() []models.Trade {
 
 	}
 
-	return trd;
+	return trd
 
 
 
@@ -149,6 +149,14 @@ func (ba OkexAdapter) getTrade() []models.Trade {
 			}
 		}
 	}*/
+}
+
+
+func (ba OkexAdapter) getAggregateBooks() []models.AggregateBook {
+
+	//movimenti che dovranno essere ritornati
+	bks := []models.AggregateBook{}
+	return bks
 }
 
 func (ba OkexAdapter) instantiateDefault(symbol string) AdapterInterface {

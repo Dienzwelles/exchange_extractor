@@ -6,6 +6,7 @@ type AdapterInterface interface {
 	instantiate(symbol string, fetchSize int, reloadInterval int) AdapterInterface
 	instantiateDefault(symbol string) AdapterInterface
 	getTrade() []models.Trade
+	getAggregateBooks() []models.AggregateBook
 }
 
 type AbstractAdapter struct{

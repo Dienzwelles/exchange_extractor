@@ -46,6 +46,33 @@ func StoreTrades(trades []models.Trade){
 }
 
 
+func StoreBooks(books []models.AggregateBook){
+
+	conn := NewConnection()
+	db := GetConnectionORM(conn)
+
+	defer db.Close()
+
+
+	for i := 0; i < len(books); i++ {
+
+		book := books[i]
+
+		res2 := db.NewRecord(book)
+		dbe := db.Create(&book)
+
+		if res2{
+			log.Print("insert book")
+		}
+
+		if dbe.Error != nil{
+			panic(dbe.Error)
+		}
+	}
+}
+
+
+
 
 func StoreMarkets(markets []models.Market) {
 

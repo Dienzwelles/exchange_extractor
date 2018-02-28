@@ -35,13 +35,12 @@ CONSTRAINT PK_exchange_id PRIMARY KEY (exchange_id, origin, transitory_1, transi
 
 
 
-CREATE TABLE extractor.books (
+CREATE TABLE extractor.aggregate_books (
 id BIGINT AUTO_INCREMENT NOT NULL,
 exchange_id CHAR(20) NOT NULL,
 symbol CHAR(20) NOT NULL,
-type CHAR(20) NOT NULL,
-book_ts TIMESTAMP NOT NULL,
-amount NUMERIC(28,10) NOT NULL,
 price NUMERIC(28,10) NOT NULL,
+count NUMERIC(28,10) NOT NULL,
+amount NUMERIC(28,10) NOT NULL,
  CONSTRAINT PK_trades PRIMARY KEY (id));
 
