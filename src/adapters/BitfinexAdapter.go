@@ -110,37 +110,15 @@ func (ba BitfinexAdapter) getTrade() []models.Trade {
 
 func (ba BitfinexAdapter) getAggregateBooks() []models.AggregateBook {
 
-	//movimenti che dovranno essere ritornati
+	//get last bulk
+	lastBulk := datastorage.GetLastBulk(ba.ExchangeId, ba.Symbol)
+
+	//set last bulk as old
+
+
 
 	var url string
 	url = "https://api.bitfinex.com/v2/book/t" + strings.ToUpper(ba.Symbol) + "/P0"
-
-
-
-/*
-	books := []models.AggregateBook{}
-	for _, rawbook := range rawbooks{
-		//p, _:= strconv.ParseFloat(rawbook, 64)
-		p := rawbook.Price
-		// := rawbook[0]
-		//c, _:= strconv.ParseFloat(rawbook, 64)
-		//c, _:= strconv.ParseFloat(rawbook.Count, 64)
-		c := float64(rawbook.Count)
-		//c := rawbook[1]
-		//a, _:= strconv.ParseFloat(rawbook, 64)
-		//a, _:= strconv.ParseFloat(rawbook.Amount, 64)
-		a := rawbook.Amount
-		//a := rawbook[2]
-		book := models.AggregateBook{Exchange_id: ba.ExchangeId, Symbol: strings.ToUpper(ba.Symbol), Price: p, Count: c, Amount: a}
-		books = append(books, book)
-	}
-
-
-
-
-	log.Print("Got ", len(books), " books")
-
-*/
 
 	log.Println(url)
 
@@ -230,3 +208,4 @@ func CheckBitfinexRecord (symbol string, time_last time.Time, quantity float64) 
 
 	return true
 }
+

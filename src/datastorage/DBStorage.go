@@ -125,3 +125,36 @@ func GetMarkets(exchange_id string) []string{
 
 	return markets
 }
+
+
+func GetLastBulk(exchange string, symbol string ) int64 {
+
+	conn := NewConnection()
+	db := GetConnectionORM(conn)
+
+	defer db.Close()
+
+	type LastBulk struct{
+		exchange_id string
+		symbol string
+		bulk int64
+	}
+	var lastBulk LastBulk
+
+	db.Table("accorpate_books").Select("exchange_id, symbol, max(bulk)").Where("exchange_id = ? and symbol = ? ", exchange, symbol).First(&lastBulk)
+
+	return lastBulk.bulk
+}
+
+
+func SetBulkAsOld(exchange string, symbol string, bulk int64 ) {
+
+	conn := NewConnection()
+	db := GetConnectionORM(conn)
+
+	defer db.Close()
+
+	db.Table("accorpate_books").Select("exchange_id, symbol, max(bulk)").Where("exchange_id = ? and symbol = ? ", exchange, symbol).First(&lastBulk)
+
+	return lastBulk
+}
