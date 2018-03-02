@@ -50,7 +50,7 @@ func (mw *AdapterBookWork) DoWork(workRoutine int) {
 	for {
 		books := mw.Adapter.getAggregateBooks()
 		queuemanager.BooksEnqueue(books)
-		time.Sleep(4 * time.Second)
+		time.Sleep(10 * time.Second)
 		if shutdown == true {
 			return
 		}
@@ -72,7 +72,7 @@ func (mw *DataExtractorBooksWork) DoWork(workRoutine int) {
 func Instantiate() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	workPool := workpool.New(4, 800)
+	workPool := workpool.New(8, 800)
 
 	shutdown = false // Race Condition, Sorry
 
@@ -148,9 +148,14 @@ func Instantiate() {
 	  2 - generete a go routine for each symbol
 	 */
 
+
+
+
+
 	symbols := datastorage.GetMarkets(BITFINEX)
 	for _, symbol := range symbols {
 		go func(symbol string) {
+
 			//adapter istance
 			var a AdapterInterface
 			a = NewBitfinexAdapter().instantiateDefault(symbol)
@@ -165,11 +170,6 @@ func Instantiate() {
 				time.Sleep(100 * time.Millisecond)
 			}
 
-			dataExtractorBooksWork := DataExtractorBooksWork{}
-			if err := workPool.PostWork("dataExtractorBooksWork", &dataExtractorBooksWork); err != nil {
-				fmt.Printf("ERROR: %s\n", err)
-				time.Sleep(100 * time.Millisecond)
-			}
 
 			if shutdown == true {
 				return
@@ -177,6 +177,20 @@ func Instantiate() {
 
 		}(symbol)
 	}
+
+	go func() {
+		dataExtractorBooksWork := DataExtractorBooksWork{}
+		if err := workPool.PostWork("dataExtractorBooksWork", &dataExtractorBooksWork); err != nil {
+			fmt.Printf("ERROR: %s\n", err)
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		if shutdown == true {
+			return
+		}
+	}()
+
+
 
 
 	fmt.Println("Hit any key to exit")

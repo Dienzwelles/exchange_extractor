@@ -13,6 +13,7 @@ import (
 	"strings"
 	_"github.com/shopspring/decimal"
 	_"github.com/thrasher-/gocryptotrader/exchanges/bitfinex"
+	"fmt"
 )
 
 
@@ -22,6 +23,7 @@ const BITFINEX  = "Bitfinex"
 //sposto i ragionamenti prima fatti su StartMs su questa
 //struttura
 var ts_bitfinex_transactions = map[string]int64{}
+var lastLot int64
 
 
 type BitfinexAdapter struct{
@@ -109,12 +111,10 @@ func (ba BitfinexAdapter) getTrade() []models.Trade {
 }
 
 func (ba BitfinexAdapter) getAggregateBooks() []models.AggregateBook {
-
-	//get last bulk
-	lastBulk := datastorage.GetLastBulk(ba.ExchangeId, ba.Symbol)
-
-	//set last bulk as old
-
+	lastLot = datastorage.GetLastLot(ba.ExchangeId, ba.Symbol)
+	log.Println(ba.Symbol, lastLot)
+	lastLot++
+	log.Println(ba.Symbol , lastLot)
 
 
 	var url string
@@ -154,7 +154,8 @@ func (ba BitfinexAdapter) getAggregateBooks() []models.AggregateBook {
 
 	books := []models.AggregateBook{}
 	for _, rawbook := range rawbooks{
-		book := models.AggregateBook{Exchange_id: ba.ExchangeId, Symbol: strings.ToUpper(ba.Symbol), Price: rawbook[0], Count: rawbook[1], Amount: rawbook[2]}
+		book := models.AggregateBook{Exchange_id: ba.ExchangeId, Symbol: strings.ToUpper(ba.Symbol), Price: rawbook[0], Count_number: rawbook[1], Amount: rawbook[2],Lot: lastLot, Obsolete: false}
+		fmt.Println(book)
 		books = append(books, book)
 	}
 

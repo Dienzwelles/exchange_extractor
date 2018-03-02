@@ -8,7 +8,10 @@ import (
 	_ "github.com/jinzhu/gorm"
 	_ "fmt"
 	_ "strings"
+
+	"strings"
 )
+
 
 func StoreTrades(trades []models.Trade){
 	//db, err := gorm.Open("mysql", "mysqlusr:Quid2017!@tcp(localhost)/extractor?charset=utf8&parseTime=True&loc=Local")
@@ -54,6 +57,10 @@ func StoreBooks(books []models.AggregateBook){
 	defer db.Close()
 
 
+	//get the last lot
+	lastLot := books[0].Lot -1
+
+
 	for i := 0; i < len(books); i++ {
 
 		book := books[i]
@@ -69,6 +76,10 @@ func StoreBooks(books []models.AggregateBook){
 			panic(dbe.Error)
 		}
 	}
+	//set last lot as old
+	if lastLot>=1 {
+		SetLotAsOld(books[0].Exchange_id, books[0].Symbol, lastLot)
+	}
 }
 
 
@@ -80,7 +91,6 @@ func StoreMarkets(markets []models.Market) {
 	db := GetConnectionORM(conn)
 
 	defer db.Close()
-
 	for _, market := range markets {
 		//fmt.Println(market)
 		res2 := db.NewRecord(market)
@@ -127,34 +137,37 @@ func GetMarkets(exchange_id string) []string{
 }
 
 
-func GetLastBulk(exchange string, symbol string ) int64 {
+
+func GetLastLot(exchange string, symbol string ) int64 {
 
 	conn := NewConnection()
 	db := GetConnectionORM(conn)
+	db.LogMode(true)
 
 	defer db.Close()
 
-	type LastBulk struct{
-		exchange_id string
-		symbol string
-		bulk int64
-	}
-	var lastBulk LastBulk
 
-	db.Table("accorpate_books").Select("exchange_id, symbol, max(bulk)").Where("exchange_id = ? and symbol = ? ", exchange, symbol).First(&lastBulk)
+	var record models.AggregateBook
 
-	return lastBulk.bulk
+	db.Model(&record).Debug().Where("exchange_id = ? and symbol = ? ", exchange, strings.ToUpper(symbol)).Order("lot desc").Last(&record)
+
+
+	log.Println(record.Lot, exchange, strings.ToUpper(symbol))
+	return record.Lot
 }
 
 
-func SetBulkAsOld(exchange string, symbol string, bulk int64 ) {
+func SetLotAsOld(exchange string, symbol string, lot int64 ) {
 
 	conn := NewConnection()
 	db := GetConnectionORM(conn)
+	db.LogMode(true)
 
 	defer db.Close()
 
-	db.Table("accorpate_books").Select("exchange_id, symbol, max(bulk)").Where("exchange_id = ? and symbol = ? ", exchange, symbol).First(&lastBulk)
 
-	return lastBulk
+	db.Table("aggregate_books").Debug().Where("exchange_id = ? and symbol = ? and lot = ?", exchange, strings.ToUpper(symbol), lot).UpdateColumn("obsolete", 1)
+
+
+
 }
