@@ -46,3 +46,12 @@ amount NUMERIC(28,10) NOT NULL,
 obsolete BOOL NOT NULL,
  CONSTRAINT PK_trades PRIMARY KEY (id));
 
+CREATE VIEW extractor.actual_lots AS
+(SELECT exchange_id, symbol, max(lot) actual_lot
+	FROM extractor.aggregate_books
+	GROUP BY exchange_id, symbol);
+
+CREATE VIEW extractor.last_trades AS
+(SELECT exchange_id, symbol, max(id) max_id FROM extractor.trades
+	GROUP BY exchange_id, symbol); --DA VEDERE SE PRESTAZIONI FANNO SCHIFO)
+
