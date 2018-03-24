@@ -8,7 +8,8 @@ import (
 	"time"
 	"github.com/goinggo/workpool"
 	"../queuemanager"
-	"../datastorage"
+	_"../datastorage"
+	"../models"
 )
 
 var shutdown bool
@@ -23,7 +24,7 @@ func (mw *AdapterWork) DoWork(workRoutine int) {
 	for {
 		trades := mw.Adapter.getTrade()
 		queuemanager.Enqueue(trades)
-		time.Sleep(4 * time.Second)
+		time.Sleep(10 * time.Second)
 		if shutdown == true {
 			return
 		}
@@ -75,7 +76,7 @@ func Instantiate() {
 	workPool := workpool.New(8, 800)
 
 	shutdown = false // Race Condition, Sorry
-
+/*
 	go func() {
 
 		var a AdapterInterface
@@ -133,26 +134,20 @@ func Instantiate() {
 		}
 
 */
-
-
+/*
 		if shutdown == true {
 			return
 		}
 
 	}()
 
-
-
 	/*book section
 	  1 - get the list of the symbol for each exchange
 	  2 - generete a go routine for each symbol
-	 */
+	*/
 
-
-
-
-
-	symbols := datastorage.GetMarkets(BITFINEX)
+/*	symbols := datastorage.GetMarkets(BITFINEX)
+	//subroutine to get books
 	for _, symbol := range symbols {
 		go func(symbol string) {
 
@@ -170,7 +165,6 @@ func Instantiate() {
 				time.Sleep(100 * time.Millisecond)
 			}
 
-
 			if shutdown == true {
 				return
 			}
@@ -178,6 +172,7 @@ func Instantiate() {
 		}(symbol)
 	}
 
+	//subroutine to extract book and store it
 	go func() {
 		dataExtractorBooksWork := DataExtractorBooksWork{}
 		if err := workPool.PostWork("dataExtractorBooksWork", &dataExtractorBooksWork); err != nil {
@@ -189,8 +184,29 @@ func Instantiate() {
 			return
 		}
 	}()
+*/
+	//subroutine to execute arbitrage
+	go func() {
 
+		//adapter istance
+		var a AdapterInterface
+		a = NewBitfinexAdapter().instantiateDefault("")
 
+		adapterArbitrageWork := AdapterArbitrageWork{
+			Adapter: a,
+			WP:      workPool,
+		}
+
+		if err := workPool.PostWork("adapterArbitrageWork", &adapterArbitrageWork); err != nil {
+			fmt.Printf("ERROR: %s\n", err)
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		if shutdown == true {
+			return
+		}
+
+	}()
 
 
 	fmt.Println("Hit any key to exit")
@@ -202,5 +218,33 @@ func Instantiate() {
 	fmt.Println("Shutting Down")
 
 	workPool.Shutdown("adapterWork")
+
+}
+
+
+
+
+
+
+
+
+
+type AdapterArbitrageWork struct {
+	Adapter AdapterInterface
+	WP *workpool.WorkPool
+}
+
+func (mw *AdapterArbitrageWork) DoWork(workRoutine int) {
+	fmt.Printf("*******> WR: %d \n", workRoutine)
+	for {
+		//pass the arbitrage selected
+		arb:= models.Arbitrage{SymbolStart: "btcusd",SymbolTransitory:"ethbtc", SymbolEnd:"ethusd", AmountStart: 0}
+		mw.Adapter.executeArbitrage(arb)
+
+		time.Sleep(10 * time.Second)
+		if shutdown == true {
+			return
+		}
+	}
 
 }

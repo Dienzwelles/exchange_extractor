@@ -13,11 +13,14 @@ import (
 	"strings"
 	_"github.com/shopspring/decimal"
 	_"github.com/thrasher-/gocryptotrader/exchanges/bitfinex"
+	"github.com/bitfinexcom/bitfinex-api-go/v1"
 	"fmt"
+	"../properties"
 )
 
 
 const BITFINEX  = "Bitfinex"
+
 
 //contiene timestamp ultima richiesta fatta per symbol
 //sposto i ragionamenti prima fatti su StartMs su questa
@@ -210,3 +213,44 @@ func CheckBitfinexRecord (symbol string, time_last time.Time, quantity float64) 
 	return true
 }
 
+func (ba BitfinexAdapter) executeArbitrage(arbitrage models.Arbitrage) bool  {
+	fmt.Println("attivata funzione arbitraggio")
+	//ottengo application context
+	ac := properties.GetInstance()
+	client := bitfinex.NewClient().Auth(ac.Bitfinex.Key, ac.Bitfinex.Secret)
+	if (arbitrage.AmountStart >= 0) {
+		// case sell
+		if ac.Bitfinex.ExecArbitrage == "S" {
+			info, err := client.Account.Info()
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				fmt.Println(info)
+			}
+		}
+
+		conn := datastorage.NewConnection()
+		db := datastorage.GetConnectionORM(conn)
+		db.LogMode(true)
+		defer db.Close()
+		historicalArbitrage := models.HistoricalArbitrage{Exchange_id:BITFINEX, SymbolStart: arbitrage.SymbolStart, SymbolTransitory: arbitrage.SymbolTransitory, SymbolEnd: arbitrage.SymbolEnd}
+
+		res2 := db.NewRecord(historicalArbitrage)
+		dbe := db.Create(&historicalArbitrage)
+
+		if res2{
+			log.Print("insert new historical arbitrage")
+		}
+
+		if dbe.Error != nil{
+			panic(dbe.Error)
+		}
+
+	} else{
+		//caso di vendita
+	}
+
+
+
+	return false
+}

@@ -7,6 +7,7 @@ type AdapterInterface interface {
 	instantiateDefault(symbol string) AdapterInterface
 	getTrade() []models.Trade
 	getAggregateBooks() []models.AggregateBook
+	executeArbitrage(arbitrage models.Arbitrage) bool
 }
 
 type AbstractAdapter struct{

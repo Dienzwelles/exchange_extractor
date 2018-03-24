@@ -55,3 +55,21 @@ CREATE VIEW extractor.last_trades AS
 (SELECT exchange_id, symbol, max(id) max_id FROM extractor.trades
 	GROUP BY exchange_id, symbol); --DA VEDERE SE PRESTAZIONI FANNO SCHIFO)
 
+
+CREATE TABLE extractor.historical_arbitrages (
+id BIGINT AUTO_INCREMENT NOT NULL,
+exchange_id CHAR(20) NOT NULL,
+symbol_start CHAR(20) NOT NULL,
+type_start CHAR(20) NOT NULL,
+time_start TIMESTAMP NOT NULL,
+tid_start CHAR(20),
+symbol_transitory CHAR(20) NOT NULL,
+type_transitory CHAR(20) NOT NULL,
+time_transitory TIMESTAMP NOT NULL,
+tid_transitory CHAR(20),
+symbol_end CHAR(20) NOT NULL,
+type_end CHAR(20) NOT NULL,
+time_end TIMESTAMP NOT NULL,
+tid_end CHAR(20),
+amount_start NUMERIC(28,10) NOT NULL,
+ CONSTRAINT PK_trades PRIMARY KEY (id));

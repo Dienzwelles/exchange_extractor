@@ -16,6 +16,11 @@ type Context struct {
 		Password string `json:"password"`
 		DbName string `json:"dbName"`
 	} `json:"database"`
+	Bitfinex struct {
+		Key     string `json:"key"`
+		Secret  string `json:"secret"`
+		ExecArbitrage  string `json:"exec_arbitrage"`
+	} `json:"bitfinex"`
 }
 
 var instance *Context

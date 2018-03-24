@@ -183,3 +183,7 @@ func CheckRecord (symbol string, time_last time.Time, quantity float64) bool {
 
 	return true
 }
+
+func (ba BittrexAdapter) executeArbitrage(arbitrage models.Arbitrage) bool  {
+	return false
+}

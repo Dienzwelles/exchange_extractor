@@ -209,3 +209,7 @@ func GetLastIDOkex(symbol string) time.Time {
 
 	return tm_st
 }
+
+func (ba OkexAdapter) executeArbitrage(arbitrage models.Arbitrage) bool  {
+	return false
+}
