@@ -217,13 +217,18 @@ func (ba BitfinexAdapter) executeArbitrage(arbitrage models.Arbitrage) bool  {
 	fmt.Println("attivata funzione arbitraggio")
 	//ottengo application context
 	ac := properties.GetInstance()
+	fmt.Println(ac.Bitfinex.Key)
+	fmt.Println(ac.Bitfinex.Secret)
+	fmt.Println(ac.Bitfinex.ExecArbitrage)
 	client := bitfinex.NewClient().Auth(ac.Bitfinex.Key, ac.Bitfinex.Secret)
 	if (arbitrage.AmountStart >= 0) {
 		// case sell
 		if ac.Bitfinex.ExecArbitrage == "S" {
+			fmt.Println("funzione arbitraggio - esecuzione trade")
 			info, err := client.Account.Info()
 			if err != nil {
 				fmt.Println(err)
+				fmt.Println("funzione arbitraggio - errore esecuzione trade")
 			} else {
 				fmt.Println(info)
 			}
@@ -231,7 +236,7 @@ func (ba BitfinexAdapter) executeArbitrage(arbitrage models.Arbitrage) bool  {
 
 		conn := datastorage.NewConnection()
 		db := datastorage.GetConnectionORM(conn)
-		db.LogMode(true)
+		//db.LogMode(true)
 		defer db.Close()
 		historicalArbitrage := models.HistoricalArbitrage{Exchange_id:BITFINEX, SymbolStart: arbitrage.SymbolStart, SymbolTransitory: arbitrage.SymbolTransitory, SymbolEnd: arbitrage.SymbolEnd}
 
