@@ -14,14 +14,14 @@ func ExtractArbitrage() {
 	db := datastorage.GetConnectionORM(conn)
 
 	rowsProfittabilities, err := db.Table("extractor.last_trades tradestart").
-					Joins("JOIN extractor.last_trades tradeend on SUBSTRING(tradestart.symbol, 1, 3) = SUBSTRING(tradeend.symbol, 1, 3) AND tradestart.exchange_id = tradeend.exchange_id").
-					Joins("JOIN extractor.last_trades tradedirect ON SUBSTRING(tradestart.symbol, 4, 3) = SUBSTRING(tradedirect.symbol, 1, 3) AND tradestart.exchange_id = tradedirect.exchange_id").
-					Joins("JOIN extractor.trades datatradestart ON datatradestart.id = tradestart.max_id"). /*datatradestart.symbol = tradestart.symbol AND*/
-					Joins("JOIN extractor.trades datatradeend ON datatradeend.id = tradeend.max_id"). /*datatradeend.symbol = tradeend.symbol AND */
-					Joins("JOIN extractor.trades datatradedirect ON datatradedirect.id = tradedirect.max_id"). /*datatradedirect.symbol = tradedirect.symbol AND*/
-					Select("ABS(datatradeend.price / datatradedirect.price - datatradestart.price) /*- FEE*/ profitability, (datatradedirect.price * datatradestart.price) price_limit, tradestart.exchange_id exchange, tradestart.symbol start_symbol, tradeend.symbol end_symbol, tradedirect.symbol direct_symbol").
-					Where("tradestart.exchange_id = ? AND SUBSTRING(tradeend.symbol, 4, 3) = SUBSTRING(tradedirect.symbol, 4, 3)", "Bitfinex").
-						Order("profitability desc").Having("profitability >= ?", 0.0000000000000001).Rows()
+		Joins("JOIN extractor.last_trades tradeend on SUBSTRING(tradestart.symbol, 1, 3) = SUBSTRING(tradeend.symbol, 1, 3) AND tradestart.exchange_id = tradeend.exchange_id").
+		Joins("JOIN extractor.last_trades tradedirect ON SUBSTRING(tradestart.symbol, 4, 3) = SUBSTRING(tradedirect.symbol, 1, 3) AND tradestart.exchange_id = tradedirect.exchange_id").
+		Joins("JOIN extractor.trades datatradestart ON datatradestart.id = tradestart.max_id"). /*datatradestart.symbol = tradestart.symbol AND*/
+		Joins("JOIN extractor.trades datatradeend ON datatradeend.id = tradeend.max_id"). /*datatradeend.symbol = tradeend.symbol AND */
+		Joins("JOIN extractor.trades datatradedirect ON datatradedirect.id = tradedirect.max_id"). /*datatradedirect.symbol = tradedirect.symbol AND*/
+		Select("ABS(datatradeend.price / datatradedirect.price - datatradestart.price) /*- FEE*/ profitability, (datatradedirect.price * datatradestart.price) price_limit, tradestart.exchange_id exchange, tradestart.symbol start_symbol, tradeend.symbol end_symbol, tradedirect.symbol direct_symbol").
+		Where("tradestart.exchange_id = ? AND SUBSTRING(tradeend.symbol, 4, 3) = SUBSTRING(tradedirect.symbol, 4, 3)", "Bitfinex").
+		Order("profitability desc").Having("profitability >= ?", 0.0000000000000001).Rows()
 
 	if(err != nil){
 		print(err)
@@ -80,7 +80,7 @@ func ExtractArbitrage() {
 		volumes = append(volumes, volumeRecord)
 	}
 
-/*QTA da SCALARE in BASE A FATTORE VOLUMES E CORRETTIVO FISSO */
+	/*QTA da SCALARE in BASE A FATTORE VOLUMES E CORRETTIVO FISSO */
 
 	type bookEl struct {
 		price float64
@@ -89,33 +89,38 @@ func ExtractArbitrage() {
 		symbol string
 	}
 
-	var book bookEl
+	var bookEnd, bookStart bookEl
 
-	for i := 0; i < len(profittabilities); i++{
+	for i := 0; i < len(profittabilities); i++ {
 		volume := volumes[i].tradestartRatio
 		profittable := profittabilities[i]
 		rowsEndAmount, _ := db.Table("extractor.aggregate_books books").
-		Joins("extractor.actual_lots lots ON books.exchange_id = lots.exchange_id and books.symbol = lots.symbol and books.lot = lots.actual_lot").
-		Select("AVG(books.price * books.amount)/SUM(books.amount) booksend_price, sum(books.amount) booksend_amount, books.exchange_id, books.symbol").
-		Where("books.exchange_id = ? AND books.symbol = ? AND books.amount*SIGN(?) >= ? AND books.price*SIGN(?) >= SIGN(?)*? ", "Bitfinex", profittable.tradeend, profittable.profitability, 0, profittable.profitability, profittable.priceLimit).
-		Rows()
+			Joins("JOIN extractor.actual_lots lots ON books.exchange_id = lots.exchange_id and books.symbol = lots.symbol and books.lot = lots.actual_lot").
+			Select("AVG(books.price * books.amount)/SUM(books.amount) booksend_price, sum(books.amount) booksend_amount, books.exchange_id, books.symbol").
+			Where("books.exchange_id = ? AND books.symbol = ? AND books.amount*SIGN(?) >= ? AND books.price*SIGN(?) >= SIGN(?)*? ", "Bitfinex", profittable.tradeend, profittable.profitability, 0, profittable.profitability, profittable.profitability, profittable.priceLimit).
+			Rows()
 
-		rowsEndAmount.Next()
-		err:=rowsEndAmount.Scan(&book.price, &book.amount, &book.exchange, &book.symbol)
-		if err != nil {
-			log.Fatal(err)
+		if rowsEndAmount.Next() {
+			err := rowsEndAmount.Scan(&bookEnd.price, &bookEnd.amount, &bookEnd.exchange, &bookEnd.symbol)
+
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		rowsStartAmount, _ := db.Table("extractor.aggregate_books books").
-		Joins("extractor.actual_lots lots ON books.exchange_id = lots.exchange_id and books.symbol = lots.symbol and books.lot = lots.actual_lot").
-		Select("AVG(books.price * books.amount)/SUM(books.amount) booksstart_price, sum(books.amount) booksstart_amount, books.exchange_id, books.symbol").
-		Where("books.exchange_id = ? AND books.symbol = ? AND books.amount*SIGN(?) >= ? AND books.price*SIGN(?) >= SIGN(?)*? ", "Bitfinex", profittable.tradestart, profittable.profitability, 0, profittable.profitability, profittable.priceLimit / book.price).
-		Rows()
+			Joins("JOIN extractor.actual_lots lots ON books.exchange_id = lots.exchange_id and books.symbol = lots.symbol and books.lot = lots.actual_lot").
+			Select("AVG(books.price * books.amount)/SUM(books.amount) booksstart_price, sum(books.amount) booksstart_amount, books.exchange_id, books.symbol").
+			Where("books.exchange_id = ? AND books.symbol = ? AND books.amount*SIGN(?) >= ? AND books.price*SIGN(?) >= SIGN(?)*? ", "Bitfinex", profittable.tradestart, profittable.profitability, 0, profittable.profitability, profittable.profitability, profittable.priceLimit / bookStart.price).
+			Rows()
 
-		var amount float64
-		if(rowsAmount.Next()){
-			rowsAmount.Scan(amount)
-			print(amount / (2 + 2 * Sgn(profittable.profitability) * volume))
+		if rowsStartAmount.Next(){
+			err := rowsStartAmount.Scan(&bookStart.price, &bookStart.amount, &bookStart.exchange, &bookStart.symbol)
+
+			if err != nil {
+				log.Fatal(err)
+			}
+			print(bookStart.amount / (2 + 2 * Sgn(profittable.profitability) * volume))
 		}
 	}
 
