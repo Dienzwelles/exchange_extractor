@@ -8,7 +8,7 @@ import (
 	"time"
 	"github.com/goinggo/workpool"
 	"../queuemanager"
-	_"../datastorage"
+	"../datastorage"
 	"../models"
 )
 
@@ -76,7 +76,7 @@ func Instantiate() {
 	workPool := workpool.New(8, 800)
 
 	shutdown = false // Race Condition, Sorry
-/*
+
 	go func() {
 
 		var a AdapterInterface
@@ -134,7 +134,7 @@ func Instantiate() {
 		}
 
 */
-/*
+
 		if shutdown == true {
 			return
 		}
@@ -146,7 +146,7 @@ func Instantiate() {
 	  2 - generete a go routine for each symbol
 	*/
 
-/*	symbols := datastorage.GetMarkets(BITFINEX)
+	symbols := datastorage.GetMarkets(BITFINEX)
 	//subroutine to get books
 	for _, symbol := range symbols {
 		go func(symbol string) {
@@ -184,7 +184,7 @@ func Instantiate() {
 			return
 		}
 	}()
-*/
+
 	//subroutine to execute arbitrage
 	go func() {
 
