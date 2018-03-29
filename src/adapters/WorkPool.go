@@ -8,7 +8,7 @@ import (
 	"time"
 	"github.com/goinggo/workpool"
 	"../queuemanager"
-	"../datastorage"
+	_"../datastorage"
 	"../models"
 )
 
@@ -76,7 +76,7 @@ func Instantiate() {
 	workPool := workpool.New(8, 800)
 
 	shutdown = false // Race Condition, Sorry
-
+/*
 	go func() {
 
 		var a AdapterInterface
@@ -134,7 +134,7 @@ func Instantiate() {
 		}
 
 */
-
+/*
 		if shutdown == true {
 			return
 		}
@@ -145,7 +145,7 @@ func Instantiate() {
 	  1 - get the list of the symbol for each exchange
 	  2 - generete a go routine for each symbol
 	*/
-
+/*
 	symbols := datastorage.GetMarkets(BITFINEX)
 	//subroutine to get books
 	for _, symbol := range symbols {
@@ -184,7 +184,7 @@ func Instantiate() {
 			return
 		}
 	}()
-
+*/
 	//subroutine to execute arbitrage
 	go func() {
 
@@ -238,7 +238,7 @@ func (mw *AdapterArbitrageWork) DoWork(workRoutine int) {
 	fmt.Printf("*******> WR: %d \n", workRoutine)
 	for {
 		//pass the arbitrage selected
-		arb:= models.Arbitrage{SymbolStart: "btcusd",SymbolTransitory:"ethbtc", SymbolEnd:"ethusd", AmountStart: 0}
+		arb:= models.Arbitrage{SymbolStart: "btcusd",SymbolTransitory:"bchbtc", SymbolEnd:"bchusd", AmountStart: 0.003}
 		mw.Adapter.executeArbitrage(arb)
 
 		time.Sleep(10 * time.Second)
