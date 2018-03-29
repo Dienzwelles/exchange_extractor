@@ -7,8 +7,8 @@
     "dbName" : "extractor"
   },
   "bitfinex": {
-    "key" : "ykRywFerLt6BnqtxzspRrZKBsGoZp1PPthtDX0kwIRm",
-    "secret" : "RZIdl3qfX1eAhm2Knm8P6yPoBTQ1S8AEcdAA1ssFmCo",
+    "key" : "",
+    "secret" : "",
     "exec_arbitrage" : "S"
   }
 }
