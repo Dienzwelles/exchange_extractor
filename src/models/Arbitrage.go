@@ -7,6 +7,7 @@ type Arbitrage struct {
 	SymbolTransitory string
 	SymbolEnd string
 	AmountStart float64
+	Price float64
 }
 
 type HistoricalArbitrage struct {

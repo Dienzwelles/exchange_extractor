@@ -238,7 +238,7 @@ func (mw *AdapterArbitrageWork) DoWork(workRoutine int) {
 	fmt.Printf("*******> WR: %d \n", workRoutine)
 	for {
 		//pass the arbitrage selected
-		arb:= models.Arbitrage{SymbolStart: "btcusd",SymbolTransitory:"bchbtc", SymbolEnd:"bchusd", AmountStart: 0.003}
+		arb:= models.Arbitrage{SymbolStart: "btcusd",SymbolTransitory:"bchbtc", SymbolEnd:"bchusd", AmountStart: 0.003, Price: 30}
 		mw.Adapter.executeArbitrage(arb)
 
 		time.Sleep(10 * time.Second)
