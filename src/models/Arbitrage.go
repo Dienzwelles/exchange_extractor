@@ -7,7 +7,11 @@ type Arbitrage struct {
 	SymbolTransitory string
 	SymbolEnd string
 	AmountStart float64
-	Price float64
+	AmountTransitory float64
+	AmountEnd float64
+	PriceStart float64
+	PriceTransitory float64
+	PriceEnd float64
 }
 
 type HistoricalArbitrage struct {
@@ -26,4 +30,9 @@ type HistoricalArbitrage struct {
 	TimeEnd time.Time
 	TidEnd string
 	AmountStart float64
+	AmountTransitory float64
+	AmountEnd float64
+	PriceStart float64
+	PriceTransitory float64
+	PriceEnd float64
 }
