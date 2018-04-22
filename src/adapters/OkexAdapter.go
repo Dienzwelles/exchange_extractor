@@ -62,7 +62,7 @@ func OkexAddItem(trades []models.Trade, item models.Trade) []models.Trade {
 	return trades
 }
 
-func (ba OkexAdapter) getTrade() []models.Trade {
+func (ba OkexAdapter) getTrade() [] chan []models.Trade {
 
 	trd := []models.Trade{}
 
@@ -106,7 +106,7 @@ func (ba OkexAdapter) getTrade() []models.Trade {
 
 	}
 
-	return trd
+	return nil//trd
 
 
 
@@ -152,11 +152,11 @@ func (ba OkexAdapter) getTrade() []models.Trade {
 }
 
 
-func (ba OkexAdapter) getAggregateBooks() []models.AggregateBook {
+func (ba OkexAdapter) getAggregateBooks() ([] chan []models.AggregateBook, chan int) {
 
 	//movimenti che dovranno essere ritornati
-	bks := []models.AggregateBook{}
-	return bks
+	//bks := []models.AggregateBook{}
+	return nil, nil//bks
 }
 
 func (ba OkexAdapter) instantiateDefault(symbol string) AdapterInterface {

@@ -1,13 +1,10 @@
 package adapters
 
 import (
+	"../adapters/custom/bitfinexcustom"
 	"../models"
-	"strconv"
 	"time"
-	"net/http"
 	"log"
-	"io/ioutil"
-	"encoding/json"
 	"../datastorage"
 	_ "fmt"
 	"strings"
@@ -16,6 +13,7 @@ import (
 	"github.com/bitfinexcom/bitfinex-api-go/v1"
 	"fmt"
 	"../properties"
+	"strconv"
 )
 
 
@@ -27,142 +25,228 @@ const BITFINEX  = "Bitfinex"
 //struttura
 var ts_bitfinex_transactions = map[string]int64{}
 var lastLot int64
+var lastLotSymbol string
+var bookmap map[float64]models.AggregateBook
 
 
 type BitfinexAdapter struct{
 	AbstractAdapter
 	StartMs int64
+	initBook bool
+	chanbooks [] chan []models.AggregateBook
 }
 
 func NewBitfinexAdapter() AdapterInterface {
-	return BitfinexAdapter{}
+	return BitfinexAdapter{initBook:false}
 }
 
-func (ba BitfinexAdapter) getTrade() []models.Trade {
+func asyncExtractAll(chanchannels [] chan []float64, synchs [] chan int, symbols []string, channel string, wss *bitfinexcustom.WebSocketService){
+	wss.Connect()
 
-	//movimenti che dovranno essere ritornati
-	trd := []models.Trade{}
+	for i := 0; i < len(symbols); i++ {
+		wss.AddSubscribePrecision(channel, strings.ToUpper(symbols[i]), "R0", chanchannels[i])
+	}
+
+	for i := 0; i < len(synchs); i++ {
+		<- synchs[i]
+	}
+
+	wss.Subscribe()
+}
+
+func extractAll(chanchannels [] chan []float64, synchs [] chan int, symbols []string, channel string) *bitfinexcustom.WebSocketService{
+	ac := properties.GetInstance()
+	client := bitfinex.NewClient().Auth(ac.Bitfinex.Key, ac.Bitfinex.Secret)
+
+	trades, err:= client.Trades.All("BTCUSD", time.Now(), 50)
+
+	if err != nil{
+		panic(err)
+	}
+
+	print(trades)
+
+	wss := bitfinexcustom.NewWebSocketService(client)
+
+	go asyncExtractAll(chanchannels, synchs, symbols, channel, wss)
+
+	return wss
+}
+
+func asyncExtract(chanchannel chan []float64, synch chan int, symbol string, channel string, wss *bitfinex.WebSocketService){
+	wss.AddSubscribe(channel, strings.ToUpper(symbol), chanchannel)
+
+	<- synch
+
+	wss.Subscribe()
+}
+
+func extract(chanchannel chan []float64, synch chan int, symbol string, channel string) *bitfinex.WebSocketService{
+	ac := properties.GetInstance()
+	client := bitfinex.NewClient().Auth(ac.Bitfinex.Key, ac.Bitfinex.Secret)
+
+	trades, err:= client.Trades.All("BTCUSD", time.Now(), 50)
+
+	if err != nil{
+		panic(err)
+	}
+
+	print(trades)
+
+	wss := bitfinex.NewWebSocketService(client)
+	wss.Connect()
+
+	go asyncExtract(chanchannel, synch, symbol, channel, wss)
+
+	return wss
+}
+
+func waitTrades(chantrade chan []models.Trade, chanchannel chan []float64, synch chan int, exchangeId string, symbol string){
+	synch <- 1
+
+	for {
+		rawtrade := <-chanchannel
+
+		//diff := 1
+		tid := "0"
+		if len(rawtrade) == 4 {
+			//diff = 0
+			tid = strconv.FormatFloat(rawtrade[0], 'G', 40, 64)
+			chantrade <- []models.Trade{models.Trade{Exchange_id: exchangeId, Symbol: strings.ToUpper(symbol),
+				Trade_ts: time.Unix(int64(rawtrade[1 /*- diff*/]), 0), Amount: rawtrade[3 /*- diff*/], Price: rawtrade[2 /*- diff*/],
+				Tid: tid}}
+		}
+
+	}
+}
+
+func waitBooks(chanbooks chan []models.AggregateBook, chanchannel chan []float64, synch chan int, reset [] chan int, exchangeId string, symbol string){
+	synch <- 1
+
+	inDiff := false
+
+	for {
+		rawbook := <-chanchannel
+
+		if(len(rawbook) != 3){
+			println("pluto: " + symbol)
+			lastLot++
+
+			inDiff = true
+
+			retChanbooks := []models.AggregateBook{}
+
+			for _, value := range bookmap {
+				value.Lot = lastLot
+				retChanbooks = append(retChanbooks, value)
+			}
+			print("lunghezza array: ")
+			println(len(retChanbooks))
+			chanbooks <- retChanbooks
+			//chanbooks <- []models.AggregateBook{models.AggregateBook{Exchange_id: exchangeId, Symbol: strings.ToUpper(symbol), Price: 0, Count_number: 0, Amount: rawbook[0], Lot: lastLot, Obsolete: true}}
+		} else {
+			println("pippo: " + symbol)
+			aggregateBook := models.AggregateBook{Exchange_id: exchangeId, Symbol: strings.ToUpper(symbol), Price: rawbook[1], Count_number: 1, Amount: rawbook[2], Lot: lastLot, Obsolete: false}
+
+			if aggregateBook.Price == 0 && inDiff{
+				delete(bookmap, rawbook[0])
+			} else {
+				bookmap[rawbook[0]] = aggregateBook
+			}
+
+		}
+	}
+}
+
+/*
+func closeWss(wss *bitfinex.WebSocketService, closed bool){
+	if !closed{
+		wss.ClearSubscriptions()
+		wss.Close()
+	}
+}
+*/
+func (ba BitfinexAdapter) instantiateExtracts(symbols []string, chanbooks []chan []models.AggregateBook, chanchannels []chan []float64, synchs []chan int, reset [] chan int){
+	for {
+		print("1:extract-open lot:")
+		println(lastLot)
+		wss := extractAll(chanchannels, synchs, symbols, "book")
+		for i := 0; i < len(symbols); i++ {
+			ba.instantiateExtract(symbols[i], chanbooks[i], chanchannels[i], synchs[i], reset, i)
+		}
+
+		for i := 0; i < len(reset); i++ {
+			<-reset[i]
+		}
+
+		println("2:extract-closing ")
+		wss.ClearSubscriptions()
+		wss.Close()
+		print("3:extractclosed ")
+		println(lastLot)
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+func (ba BitfinexAdapter) instantiateExtract(symbol string, chanbook chan []models.AggregateBook, chanchannel chan []float64, synch chan int, reset [] chan int, i int){
+	go waitBooks(chanbook, chanchannel, synch, reset, ba.ExchangeId, symbol)
+}
+
+func (ba BitfinexAdapter) getTrade() [] chan []models.Trade {
 
 	//ritorna la lista dei mercati attualmente attivi
 	symbols := datastorage.GetMarkets(BITFINEX)
+	var chanchannels [] chan []float64
+	var chantrades [] chan []models.Trade
+	var synchs [] chan int
 
-	var url string
-
-	// Per ogni mercato attivo recupera ultimi movimenti
-	for _, symbol := range symbols {
-		url = "https://api.bitfinex.com/v2/trades/t" + strings.ToUpper(symbol) + "/hist?sort=1"
-		if ba.FetchSize > 0 {
-			url = url + "&limit=" + strconv.Itoa(ba.FetchSize)
-		}
-
-		if ts_bitfinex_transactions[symbol] == 0 {
-			ts_bitfinex_transactions[symbol] = time.Now().Unix() * 1000
-		}
-
-		url = url + "&start=" + strconv.FormatInt(ts_bitfinex_transactions[symbol], 10)
-
-		httpClient := http.Client{
-			Timeout: time.Second * 10, // Maximum of 2 secs
-		}
-
-		req, err := http.NewRequest(http.MethodGet, url, nil)
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		req.Header.Set("User-Agent", "bitfinex-extractor")
-		res, getErr := httpClient.Do(req)
-
-		if getErr != nil {
-			log.Fatal(getErr)
-		}
-
-		body, readErr := ioutil.ReadAll(res.Body)
-		if readErr != nil {
-			log.Fatal(readErr)
-		}
-
-		var rawtrades [][4]float64
-		jsonErr := json.Unmarshal(body, &rawtrades)
-		if jsonErr != nil {
-			log.Fatal(jsonErr)
-		}
-
-		var trades= make([]models.Trade, len(rawtrades))
-
-		for i := 0; i < len(rawtrades); i++ {
-			rawtrade := rawtrades[i]
-
-			ts_bitfinex_transactions[symbol] = int64(rawtrade[1])
-			trades[i] = models.Trade{Exchange_id: ba.ExchangeId, Symbol: strings.ToUpper(symbol), Trade_ts: time.Unix(int64(rawtrade[1]/1000), 0), Amount: rawtrade[2], Price: rawtrade[3]}
-		}
-
-		for _, trade := range trades{
-
-			//se il record è nuovo allora lo inserisco
-			if CheckBitfinexRecord(trade.Symbol, trade.Trade_ts , trade.Amount) {
-				trd = AddItem(trd, trade)
-			}
-		}
-
-		log.Print("Got ", len(trades), " trades")
-
+	for i := 0; i < len(symbols); i++ {
+		chanchannels = append(chanchannels, make(chan []float64))
+		synchs = append(synchs, make(chan int))
+		chantrades = append(chantrades, make(chan []models.Trade))
 	}
 
-	return trd
+	for i := 0; i < len(synchs); i++ {
+		extract(chanchannels[i], synchs[i], symbols[i], "trades")
+		go waitTrades(chantrades[i], chanchannels[i], synchs[i], ba.ExchangeId, symbols[i])
+	}
+
+	return chantrades
 }
 
-func (ba BitfinexAdapter) getAggregateBooks() []models.AggregateBook {
+func (ba BitfinexAdapter) getAggregateBooks() ([] chan []models.AggregateBook, chan int) {
+
 	lastLot = datastorage.GetLastLot(ba.ExchangeId, ba.Symbol)
 	log.Println(ba.Symbol, lastLot)
 	lastLot++
 	log.Println(ba.Symbol , lastLot)
 
+	symbols := datastorage.GetMarkets(BITFINEX)
+	var chanchannels [] chan []float64
+	var synchs [] chan int
+	var reset [] chan int
+	outReset := make(chan int)
 
-	var url string
-	url = "https://api.bitfinex.com/v2/book/t" + strings.ToUpper(ba.Symbol) + "/P0"
 
-	log.Println(url)
-
-
-	httpClient := http.Client{
-		Timeout: time.Second * 10, // Maximum of 2 secs
+	for i := 0; i < len(symbols); i++ {
+		chanchannels = append(chanchannels, make(chan []float64))
+		synchs = append(synchs, make(chan int))
+		reset = append(reset, make(chan int))
+		if !ba.initBook {
+			ba.chanbooks = append(ba.chanbooks, make(chan []models.AggregateBook))
+		}
 	}
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	bookmap = make(map[float64]models.AggregateBook)
 
-	if err != nil {
-		log.Fatal(err)
-	}
+	ba.initBook = true
 
-	req.Header.Set("User-Agent", "bitfinex-extractor")
-	res, getErr := httpClient.Do(req)
+	//for i := 0; i < len(synchs); i++ {
+	go ba.instantiateExtracts(symbols, ba.chanbooks, chanchannels, synchs, reset)
+	//}
 
-	if getErr != nil {
-		log.Fatal(getErr)
-	}
-	body, readErr := ioutil.ReadAll(res.Body)
-	if readErr != nil {
-		log.Fatal(readErr)
-	}
 
-	var rawbooks [][3]float64
-	jsonErr := json.Unmarshal(body,  &rawbooks)
-	if jsonErr != nil {
-		log.Fatal(jsonErr)
-	}
-
-	log.Println(rawbooks)
-
-	books := []models.AggregateBook{}
-	for _, rawbook := range rawbooks{
-		book := models.AggregateBook{Exchange_id: ba.ExchangeId, Symbol: strings.ToUpper(ba.Symbol), Price: rawbook[0], Count_number: rawbook[1], Amount: rawbook[2],Lot: lastLot, Obsolete: false}
-		fmt.Println(book)
-		books = append(books, book)
-	}
-
-	return books
+	return ba.chanbooks, outReset
 }
 
 func (ba BitfinexAdapter) instantiateDefault(symbol string) AdapterInterface {
@@ -259,3 +343,54 @@ func (ba BitfinexAdapter) executeArbitrage(arbitrage models.Arbitrage) bool  {
 
 	return false
 }
+
+/*
+func closeChannels(reset chan int, chanchannel chan []float64, synch chan int){
+	<- reset
+	time.Sleep(1000 * time.Millisecond)
+	close(chanchannel)
+
+	close(synch)
+}
+*/
+/*
+url = "https://api.bitfinex.com/v2/trades/t" + strings.ToUpper(symbol) + "/hist?sort=1"
+		if ba.FetchSize > 0 {
+			url = url + "&limit=" + strconv.Itoa(ba.FetchSize)
+		}
+
+		if ts_bitfinex_transactions[symbol] == 0 {
+			ts_bitfinex_transactions[symbol] = time.Now().Unix() * 1000
+		}
+
+		url = url + "&start=" + strconv.FormatInt(ts_bitfinex_transactions[symbol], 10)
+
+		httpClient := http.Client{
+			Timeout: time.Second * 10, // Maximum of 2 secs
+		}
+
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		req.Header.Set("User-Agent", "bitfinex-extractor")
+		res, getErr := httpClient.Do(req)
+
+		if getErr != nil {
+			log.Fatal(getErr)
+		}
+
+		body, readErr := ioutil.ReadAll(res.Body)
+		if readErr != nil {
+			log.Fatal(readErr)
+		}
+
+		var rawtrades [][4]float64
+		jsonErr := json.Unmarshal(body, &rawtrades)
+		if jsonErr != nil {
+			log.Fatal(jsonErr)
+		}
+
+ */

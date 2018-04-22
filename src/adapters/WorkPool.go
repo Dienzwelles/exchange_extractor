@@ -8,7 +8,7 @@ import (
 	"time"
 	"github.com/goinggo/workpool"
 	"../queuemanager"
-	"../datastorage"
+	//"../datastorage"
 	"../models"
 )
 
@@ -21,10 +21,15 @@ type AdapterWork struct {
 
 func (mw *AdapterWork) DoWork(workRoutine int) {
 	fmt.Printf("*******> WR: %d \n", workRoutine)
+
+	chantrades := mw.Adapter.getTrade()
+
+	for i := 0; i < len(chantrades); i++ {
+		go enqueueTrade(chantrades[i])
+	}
+
 	for {
-		trades := mw.Adapter.getTrade()
-		queuemanager.Enqueue(trades)
-		time.Sleep(10 * time.Second)
+		time.Sleep(1 * time.Second)
 		if shutdown == true {
 			return
 		}
@@ -46,17 +51,52 @@ type AdapterBookWork struct {
 	WP *workpool.WorkPool
 }
 
+func enqueueTrade(chantrade chan []models.Trade){
+	for {
+		data := <-chantrade
+		queuemanager.Enqueue(data)
+	}
+}
+
+func enqueueBook(chanbook chan []models.AggregateBook){
+	for {
+		data := <-chanbook
+		if data != nil && len(data) > 0{
+			queuemanager.BooksEnqueue(data)
+		} else{
+			print("pippo")
+		}
+
+	}
+}
+
 func (mw *AdapterBookWork) DoWork(workRoutine int) {
 	fmt.Printf("*******> WR: %d \n", workRoutine)
-	for {
-		books := mw.Adapter.getAggregateBooks()
-		queuemanager.BooksEnqueue(books)
-		time.Sleep(10 * time.Second)
-		if shutdown == true {
-			return
-		}
-	}
+	//for {
+		chanbooks, _ := mw.Adapter.getAggregateBooks()
 
+		for i := 0; i < len(chanbooks); i++ {
+			go enqueueBook(chanbooks[i])
+		}
+
+		/*
+		for {
+			time.Sleep(100 * time.Millisecond)
+			if shutdown == true {
+				return
+			}
+
+			if doReset(reset) {
+				//closeChanbooks(chanbooks)
+				for{
+					time.Sleep(500 * time.Millisecond)
+					print("*")
+				}
+				break
+			}
+		}
+		*/
+	//}
 }
 
 
@@ -77,63 +117,93 @@ func Instantiate() {
 
 	shutdown = false // Race Condition, Sorry
 
+		go func() {
+
+			var a AdapterInterface
+			a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
+
+			adapterWork := AdapterWork{
+				Adapter: a,
+				WP:      workPool,
+			}
+
+			dataExtractorWork := DataExtractorWork{}
+
+			if err := workPool.PostWork("adapterWork", &adapterWork); err != nil {
+				fmt.Printf("ERROR: %s\n", err)
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			//		dataExtractorWork := DataExtractorWork{}
+			if err := workPool.PostWork("dataExtractorWork", &dataExtractorWork); err != nil {
+				fmt.Printf("ERROR: %s\n", err)
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			//bittrex istance
+			var br AdapterInterface
+			br = NewBittrexAdapter().instantiateDefault("BTC-DOGE")
+
+			//adapter bittrex
+			brAdapterWork := AdapterWork{
+				Adapter: br,
+				WP:      workPool,
+			}
+
+			if err := workPool.PostWork("brAdapterWork", &brAdapterWork); err != nil {
+				fmt.Printf("ERROR: %s\n", err)
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			//okex istance
+			var ok AdapterInterface
+			ok = NewOkexAdapter().instantiateDefault("ltc_btc")
+
+
+			//adapter bittrex
+			okAdapterWork := AdapterWork {
+				Adapter: ok,
+				WP: workPool,
+			}
+
+
+
+			if err := workPool.PostWork("okAdapterWork", &okAdapterWork); err != nil {
+				fmt.Printf("ERROR: %s\n", err)
+				time.Sleep(100 * time.Millisecond)
+			}
+
+
+
+			if shutdown == true {
+				return
+			}
+
+		}()
+	
+	/*book section
+	  1 - get the list of the symbol for each exchange
+	  2 - generete a go routine for each symbol
+	*/
+
+
+	//subroutine to get books
+
 	go func() {
 
+		//adapter istance
 		var a AdapterInterface
 		a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
 
-		adapterWork := AdapterWork{
+		adapterBookWork := AdapterBookWork{
 			Adapter: a,
 			WP:      workPool,
 		}
 
-		dataExtractorWork := DataExtractorWork{}
-
-		if err := workPool.PostWork("adapterWork", &adapterWork); err != nil {
+		if err := workPool.PostWork("adapterBookWork", &adapterBookWork); err != nil {
 			fmt.Printf("ERROR: %s\n", err)
 			time.Sleep(100 * time.Millisecond)
 		}
-
-		//		dataExtractorWork := DataExtractorWork{}
-		if err := workPool.PostWork("dataExtractorWork", &dataExtractorWork); err != nil {
-			fmt.Printf("ERROR: %s\n", err)
-			time.Sleep(100 * time.Millisecond)
-		}
-
-		//bittrex istance
-		var br AdapterInterface
-		br = NewBittrexAdapter().instantiateDefault("BTC-DOGE")
-
-		//adapter bittrex
-		brAdapterWork := AdapterWork{
-			Adapter: br,
-			WP:      workPool,
-		}
-
-		if err := workPool.PostWork("brAdapterWork", &brAdapterWork); err != nil {
-			fmt.Printf("ERROR: %s\n", err)
-			time.Sleep(100 * time.Millisecond)
-		}
-
-		//okex istance
-		/*		var ok AdapterInterface
-		ok = NewOkexAdapter().instantiateDefault("ltc_btc")
-
-
-		//adapter bittrex
-		okAdapterWork := AdapterWork {
-			Adapter: ok,
-			WP: workPool,
-		}
-
-
-
-		if err := workPool.PostWork("okAdapterWork", &okAdapterWork); err != nil {
-			fmt.Printf("ERROR: %s\n", err)
-			time.Sleep(100 * time.Millisecond)
-		}
-
-*/
 
 		if shutdown == true {
 			return
@@ -141,36 +211,6 @@ func Instantiate() {
 
 	}()
 
-	/*book section
-	  1 - get the list of the symbol for each exchange
-	  2 - generete a go routine for each symbol
-	*/
-
-	symbols := datastorage.GetMarkets(BITFINEX)
-	//subroutine to get books
-	for _, symbol := range symbols {
-		go func(symbol string) {
-
-			//adapter istance
-			var a AdapterInterface
-			a = NewBitfinexAdapter().instantiateDefault(symbol)
-
-			adapterBookWork := AdapterBookWork{
-				Adapter: a,
-				WP:      workPool,
-			}
-
-			if err := workPool.PostWork("adapterBookWork", &adapterBookWork); err != nil {
-				fmt.Printf("ERROR: %s\n", err)
-				time.Sleep(100 * time.Millisecond)
-			}
-
-			if shutdown == true {
-				return
-			}
-
-		}(symbol)
-	}
 
 	//subroutine to extract book and store it
 	go func() {
@@ -209,6 +249,9 @@ func Instantiate() {
 	}()
 
 
+	for{
+		time.Sleep(100 * time.Millisecond)
+	}
 	fmt.Println("Hit any key to exit")
 	reader := bufio.NewReader(os.Stdin)
 	reader.ReadString('\n')
@@ -221,7 +264,14 @@ func Instantiate() {
 
 }
 
-
+func doReset(reset chan int) bool{
+	select {
+	case <- reset:
+		return true
+	default:
+		return false
+	}
+}
 
 
 
@@ -248,3 +298,11 @@ func (mw *AdapterArbitrageWork) DoWork(workRoutine int) {
 	}
 
 }
+
+/*
+func closeChanbooks(chanbooks [] chan []models.AggregateBook){
+	for i := 0; i < len(chanbooks); i++ {
+		close(chanbooks[i])
+	}
+}
+*/

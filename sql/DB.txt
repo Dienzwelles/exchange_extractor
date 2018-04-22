@@ -33,8 +33,6 @@ cross_int1_origin NUMERIC(28,10) NOT NULL,
 fee NUMERIC(28,10) NOT NULL,
 CONSTRAINT PK_exchange_id PRIMARY KEY (exchange_id, origin, transitory_1, transitory_2, target));
 
-
-
 CREATE TABLE extractor.aggregate_books (
 id BIGINT AUTO_INCREMENT NOT NULL,
 exchange_id CHAR(20) NOT NULL,
@@ -46,14 +44,21 @@ amount NUMERIC(28,10) NOT NULL,
 obsolete BOOL NOT NULL,
  CONSTRAINT PK_trades PRIMARY KEY (id));
 
-CREATE VIEW extractor.actual_lots AS
-(SELECT exchange_id, symbol, max(lot) actual_lot
-	FROM extractor.aggregate_books
-	GROUP BY exchange_id, symbol);
+CREATE INDEX IDX_aggregate_books ON extractor.aggregate_books (exchange_id , symbol, lot, price, count_number, amount);
 
-CREATE VIEW extractor.last_trades AS
-(SELECT exchange_id, symbol, max(id) max_id FROM extractor.trades
-	GROUP BY exchange_id, symbol); --DA VEDERE SE PRESTAZIONI FANNO SCHIFO)
+CREATE TABLE extractor.last_aggregate_books AS SELECT exchange_id, symbol, 1 ask, 0 price, 0 count_number, 0 amount FROM aggregate_books;
+ALTER TABLE extractor.last_aggregate_books ADD CONSTRAINT PK_last_aggregate PRIMARY KEY (exchange_id, symbol, ask, price);
+
+/*
+CREATE VIEW extractor.best_books AS
+    (SELECT MAX(bookAsk.price) price, bookAsk.exchange_id, bookAsk.symbol, 1 ask, count_number, amount FROM extractor.last_aggregate_books bookAsk
+    WHERE bookAsk.amount > 0
+    GROUP BY bookAsk.symbol)
+    UNION
+    (SELECT MIN(bookBid.price), bookBid.exchange_id, bookBid.symbol, -1 ask, count_number, amount FROM extractor.last_aggregate_books bookBid
+     WHERE bookBid.amount < 0
+    GROUP BY bookBid.symbol)
+*/
 
 
 CREATE TABLE extractor.historical_arbitrages (

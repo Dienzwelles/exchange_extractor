@@ -43,7 +43,7 @@ func AddItem(trades []models.Trade, item models.Trade) []models.Trade {
 	return trades
 }
 
-func (ba BittrexAdapter) getTrade() []models.Trade {
+func (ba BittrexAdapter) getTrade() [] chan []models.Trade {
 
 	// esempio chiamata base
 	// url = "https://bittrex.com/api/v1.1/public/getmarkethistory?market=BTC-DOGE"
@@ -96,14 +96,14 @@ func (ba BittrexAdapter) getTrade() []models.Trade {
 			}
 		}
 	}
-	return trd
+	return nil//trd
 }
 
-func (ba BittrexAdapter) getAggregateBooks() []models.AggregateBook {
+func (ba BittrexAdapter) getAggregateBooks() ([] chan []models.AggregateBook, chan int) {
 
 	//movimenti che dovranno essere ritornati
-	bks := []models.AggregateBook{}
-	return bks
+	//bks := []models.AggregateBook{}
+	return nil, nil//bks
 }
 
 

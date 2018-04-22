@@ -5,8 +5,8 @@ import models "../models"
 type AdapterInterface interface {
 	instantiate(symbol string, fetchSize int, reloadInterval int) AdapterInterface
 	instantiateDefault(symbol string) AdapterInterface
-	getTrade() []models.Trade
-	getAggregateBooks() []models.AggregateBook
+	getTrade() [] chan []models.Trade
+	getAggregateBooks() ([] chan []models.AggregateBook, chan int)
 	executeArbitrage(arbitrage models.Arbitrage) bool
 }
 
