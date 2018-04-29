@@ -73,7 +73,18 @@ type subscribeMsg struct {
 	Channel   string  `json:"channel"`
 	Pair      string  `json:"pair"`
 	ChanID    float64 `json:"chanId,omitempty"`
-	Precision string  `json:"prec,omitempty"`
+	Precision string  `json:"precision,omitempty"`
+	Length string `json:"len,omitempty"`
+}
+
+type SubscribeToChannelData struct {
+	Channel string
+	Pair    string
+	Chan    chan []float64
+	Precision string
+	Frequency string
+	Length    string
+	Key       string
 }
 
 type subscribeToChannel struct {
@@ -81,6 +92,7 @@ type subscribeToChannel struct {
 	Pair    string
 	Chan    chan []float64
 	Precision string
+	Length string
 }
 
 // NewWebSocketService returns a WebSocketService using the given client.
@@ -118,16 +130,28 @@ func (w *WebSocketService) Close() {
 	w.ws.Close()
 }
 
-func (w *WebSocketService) AddSubscribePrecision(channel string, pair string, precision string, c chan []float64) {
+func (w *WebSocketService) AddSubscribeFull(data SubscribeToChannelData) {
+	s := subscribeToChannel{
+		Channel: data.Channel,
+		Pair:    data.Pair,
+		Chan:    data.Chan,
+		Precision: data.Precision,
+		Length: data.Length,
+	}
+	w.subscribes = append(w.subscribes, s)
+}
+/*
+func (w *WebSocketService) AddSubscribeFullOld(channel string, pair string, precision string, length string, c chan []float64) {
 	s := subscribeToChannel{
 		Channel: channel,
 		Pair:    pair,
 		Chan:    c,
 		Precision: precision,
+		Length: length,
 	}
 	w.subscribes = append(w.subscribes, s)
 }
-
+*/
 func (w *WebSocketService) AddSubscribe(channel string, pair string, c chan []float64) {
 	s := subscribeToChannel{
 		Channel: channel,
@@ -148,6 +172,7 @@ func (w *WebSocketService) sendSubscribeMessages() error {
 			Channel: s.Channel,
 			Pair:    s.Pair,
 			Precision: s.Precision,
+			Length: s.Length,
 		})
 
 		println(string(msg))

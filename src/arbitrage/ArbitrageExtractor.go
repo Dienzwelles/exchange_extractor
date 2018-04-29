@@ -7,14 +7,28 @@ import(
 	//"time"
 	//"math"
 	//"go/constant"
+	"math"
 )
 
 type volumesEl struct {
 	tradeRatio float64
 	trade string
 }
+type profEl struct {
+	profitability 		float64
+	firstBuyPriceLimit  float64
+	firstBuyAmount  float64
+	secondBuyPriceLimit float64
+	secondBuyAmount float64
+	sellPriceLimit    	float64
+	sellAmount    	float64
+	exchange      		string
+	bookstart     		string
+	bookend       		string
+	bookdirect    		string
+}
 
-func ExtractArbitrage() (*models.Arbitrage){
+func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
 
 	conn := datastorage.NewConnection()
 	db := datastorage.GetConnectionORM(conn)
@@ -31,27 +45,14 @@ func ExtractArbitrage() (*models.Arbitrage){
 		" IF(bookstart.ask > 0, inversebookdirect.price, inversebookend.price) first_buy_price_limit, IF(bookstart.ask > 0, inversebookdirect.amount, -inversebookend.amount) first_buy_amount, " +
 		" bookstart.price second_buy_price_limit, bookstart.ask * bookstart.amount second_buy_amount, " +
 		" IF(bookstart.ask > 0, inversebookend.price, inversebookdirect.price) sell_price_limit, IF(bookstart.ask > 0, inversebookend.amount, -inversebookdirect.amount) sell_amount, " +
-		" bookstart.exchange_id, bookstart.symbol start_symbol, IF(bookstart.ask > 0, bookend.symbol, bookdirect.symbol) end_symbol, IF(bookstart.ask > 0, bookdirect.symbol, bookend.symbol) direct_symbol", 6).
+		" bookstart.exchange_id, bookstart.symbol start_symbol, IF(bookstart.ask > 0, bookend.symbol, bookdirect.symbol) end_symbol, IF(bookstart.ask > 0, bookdirect.symbol, bookend.symbol) direct_symbol", 5).
 		Where("bookstart.exchange_id = ? AND SUBSTRING(bookend.symbol, 4, 3) = SUBSTRING(bookdirect.symbol, 4, 3)" +
-		" AND ((bookstart.ask, bookend.ask, bookdirect.ask) = (1,-1, 1) OR (bookstart.ask, bookend.ask, bookdirect.ask) = (-1, 1, -1))", "Bitfinex").
+		" AND ((bookstart.ask, bookend.ask, bookdirect.ask) = (1,-1, 1) OR (bookstart.ask, bookend.ask, bookdirect.ask) = (-1, 1, -1))", exchangeId).
 		Order("profitability desc").
-		Having("profitability >= ?", 0.001).Rows()
+		Having("profitability >= ?", 0.00000000000000000001).Rows()
 
 	if(err != nil){
 		print(err)
-	}
-	type profEl struct {
-		profitability 		float64
-		firstBuyPriceLimit  float64
-		firstBuyAmount  float64
-		secondBuyPriceLimit float64
-		secondBuyAmount float64
-		sellPriceLimit    	float64
-		sellAmount    	float64
-		exchange      		string
-		bookstart     		string
-		bookend       		string
-		bookdirect    		string
 	}
 
 	var profittabilities 	[]profEl
@@ -105,12 +106,13 @@ func ExtractArbitrage() (*models.Arbitrage){
 
 	var bookEnd, bookStart, bookDirect bookEl
 	*/
+	var ret [] models.Arbitrage
 	for i := 0; i < len(profittabilities); i++ {
 		profittable := profittabilities[i]
 		volume := getVolume(volumes, profittable.bookdirect)
-		tradeEndSymbol := tradeEndSymbols[i]
+		/*tradeEndSymbol := tradeEndSymbols[i]
 		tradeStartSymbol := bookStartSymbols[i]
-		tradeDirectSymbol := bookDirectSymbols[i]
+		tradeDirectSymbol := bookDirectSymbols[i]*/
 		/*
 		rowsEndAmount, _ := db.Table("extractor.aggregate_books books").
 			Joins("JOIN extractor.actual_lots lots ON books.exchange_id = lots.exchange_id and books.symbol = lots.symbol and books.lot = lots.actual_lot").
@@ -168,14 +170,33 @@ func ExtractArbitrage() (*models.Arbitrage){
 		if volume != nil {
 			volumeRatio = volume.tradeRatio
 		}
-		amount := profittable.firstBuyAmount / (2 + 2 * Sgn(profittable.profitability) * volumeRatio)
-		print(amount)
-		return &models.Arbitrage{SymbolStart: tradeDirectSymbol, SymbolTransitory:tradeStartSymbol, SymbolEnd:tradeEndSymbol, AmountStart: amount}
+
+		firstAmount := profittable.firstBuyAmount / (2 + 2 * Sgn(profittable.profitability) * volumeRatio)
+		print(firstAmount)
+		ret = append(ret, getArbitrage(profittable, firstAmount))
 		/*}*/
 	}
 
-	return nil
+	return ret
 }
+
+func getArbitrage(profittable profEl, firstAmount float64) (models.Arbitrage){
+
+	firstBuy := firstAmount * profittable.firstBuyPriceLimit
+
+
+	direct := profittable.bookdirect[0:3] == profittable.bookstart[3:6]
+	secondBuyPrice := ternaryFloat64(direct, profittable.firstBuyPriceLimit, profittable.sellPriceLimit) * profittable.secondBuyPriceLimit
+	secondBuy := profittable.secondBuyAmount * secondBuyPrice
+
+	sell := profittable.sellAmount * profittable.sellPriceLimit
+
+	minPrice := math.Min(firstBuy, math.Min(secondBuy, sell))
+
+	return models.Arbitrage{SymbolStart: profittable.bookdirect, SymbolTransitory: profittable.bookstart, SymbolEnd: profittable.bookend,
+		AmountStart: minPrice/profittable.firstBuyPriceLimit, AmountTransitory: minPrice/secondBuyPrice, AmountEnd: minPrice/profittable.sellPriceLimit }
+}
+
 
 func getVolume(volumes []volumesEl, trade string) *volumesEl{
 	if(volumes != nil){
@@ -197,6 +218,14 @@ func Sgn(a float64) float64 {
 		return +1
 	}
 	return 0
+}
+
+func ternaryFloat64(test bool, a float64, b float64) float64{
+	if(test){
+		return a
+	}
+
+	return b
 }
 
 func ternary(test bool, a string, b string) string{

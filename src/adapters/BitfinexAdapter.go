@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"../properties"
 	"strconv"
+	"golang.org/x/sync/syncmap"
 )
 
 
@@ -26,14 +27,14 @@ const BITFINEX  = "Bitfinex"
 var ts_bitfinex_transactions = map[string]int64{}
 var lastLot int64
 var lastLotSymbol string
-var bookmap map[float64]models.AggregateBook
+var bookmap *syncmap.Map
 
 
 type BitfinexAdapter struct{
 	AbstractAdapter
 	StartMs int64
 	initBook bool
-	chanbooks [] chan []models.AggregateBook
+	chanbook chan []models.AggregateBook
 }
 
 func NewBitfinexAdapter() AdapterInterface {
@@ -44,7 +45,15 @@ func asyncExtractAll(chanchannels [] chan []float64, synchs [] chan int, symbols
 	wss.Connect()
 
 	for i := 0; i < len(symbols); i++ {
-		wss.AddSubscribePrecision(channel, strings.ToUpper(symbols[i]), "R0", chanchannels[i])
+		s :=bitfinexcustom.SubscribeToChannelData{
+			Channel: channel,
+			Pair: strings.ToUpper(symbols[i]),
+			Chan: chanchannels[i],
+			Precision: "R0",
+			Length: "100",
+		}
+		wss.AddSubscribeFull(s)
+		//wss.AddSubscribeFull(channel, strings.ToUpper(symbols[i]), "R0", "100", chanchannels[i])
 	}
 
 	for i := 0; i < len(synchs); i++ {
@@ -120,7 +129,7 @@ func waitTrades(chantrade chan []models.Trade, chanchannel chan []float64, synch
 	}
 }
 
-func waitBooks(chanbooks chan []models.AggregateBook, chanchannel chan []float64, synch chan int, reset [] chan int, exchangeId string, symbol string){
+func waitBooks(chanbook chan []models.AggregateBook, chanchannel chan []float64, synch chan int, reset [] chan int, exchangeId string, symbol string){
 	synch <- 1
 
 	inDiff := false
@@ -129,29 +138,33 @@ func waitBooks(chanbooks chan []models.AggregateBook, chanchannel chan []float64
 		rawbook := <-chanchannel
 
 		if(len(rawbook) != 3){
-			println("pluto: " + symbol)
+			//println("pluto: " + symbol)
 			lastLot++
 
 			inDiff = true
 
 			retChanbooks := []models.AggregateBook{}
 
-			for _, value := range bookmap {
-				value.Lot = lastLot
-				retChanbooks = append(retChanbooks, value)
-			}
-			print("lunghezza array: ")
+			bookmap.Range(func(ki, vi interface{}) bool {
+				_, v := ki.(float64), vi.(models.AggregateBook)
+
+				v.Lot = lastLot
+				retChanbooks = append(retChanbooks, v)
+
+				return true
+			})
+
+			//print("lunghezza array: ")
 			println(len(retChanbooks))
-			chanbooks <- retChanbooks
+			chanbook <- retChanbooks
 			//chanbooks <- []models.AggregateBook{models.AggregateBook{Exchange_id: exchangeId, Symbol: strings.ToUpper(symbol), Price: 0, Count_number: 0, Amount: rawbook[0], Lot: lastLot, Obsolete: true}}
 		} else {
-			println("pippo: " + symbol)
 			aggregateBook := models.AggregateBook{Exchange_id: exchangeId, Symbol: strings.ToUpper(symbol), Price: rawbook[1], Count_number: 1, Amount: rawbook[2], Lot: lastLot, Obsolete: false}
 
 			if aggregateBook.Price == 0 && inDiff{
-				delete(bookmap, rawbook[0])
+				bookmap.Delete(rawbook[0])
 			} else {
-				bookmap[rawbook[0]] = aggregateBook
+				bookmap.Store(rawbook[0], aggregateBook)
 			}
 
 		}
@@ -166,13 +179,13 @@ func closeWss(wss *bitfinex.WebSocketService, closed bool){
 	}
 }
 */
-func (ba BitfinexAdapter) instantiateExtracts(symbols []string, chanbooks []chan []models.AggregateBook, chanchannels []chan []float64, synchs []chan int, reset [] chan int){
+func (ba BitfinexAdapter) instantiateExtracts(symbols []string, chanbook chan []models.AggregateBook, chanchannels []chan []float64, synchs []chan int, reset [] chan int){
 	for {
 		print("1:extract-open lot:")
 		println(lastLot)
 		wss := extractAll(chanchannels, synchs, symbols, "book")
 		for i := 0; i < len(symbols); i++ {
-			ba.instantiateExtract(symbols[i], chanbooks[i], chanchannels[i], synchs[i], reset, i)
+			ba.instantiateExtract(symbols[i], chanbook, chanchannels[i], synchs[i], reset, i)
 		}
 
 		for i := 0; i < len(reset); i++ {
@@ -214,7 +227,7 @@ func (ba BitfinexAdapter) getTrade() [] chan []models.Trade {
 	return chantrades
 }
 
-func (ba BitfinexAdapter) getAggregateBooks() ([] chan []models.AggregateBook, chan int) {
+func (ba BitfinexAdapter) getAggregateBooks() (chan []models.AggregateBook, chan int) {
 
 	lastLot = datastorage.GetLastLot(ba.ExchangeId, ba.Symbol)
 	log.Println(ba.Symbol, lastLot)
@@ -227,26 +240,26 @@ func (ba BitfinexAdapter) getAggregateBooks() ([] chan []models.AggregateBook, c
 	var reset [] chan int
 	outReset := make(chan int)
 
+	if !ba.initBook {
+		ba.chanbook = make(chan []models.AggregateBook)
+	}
 
 	for i := 0; i < len(symbols); i++ {
 		chanchannels = append(chanchannels, make(chan []float64))
 		synchs = append(synchs, make(chan int))
 		reset = append(reset, make(chan int))
-		if !ba.initBook {
-			ba.chanbooks = append(ba.chanbooks, make(chan []models.AggregateBook))
-		}
 	}
 
-	bookmap = make(map[float64]models.AggregateBook)
+	bookmap = new(syncmap.Map)
 
 	ba.initBook = true
 
 	//for i := 0; i < len(synchs); i++ {
-	go ba.instantiateExtracts(symbols, ba.chanbooks, chanchannels, synchs, reset)
+	go ba.instantiateExtracts(symbols, ba.chanbook, chanchannels, synchs, reset)
 	//}
 
 
-	return ba.chanbooks, outReset
+	return ba.chanbook, outReset
 }
 
 func (ba BitfinexAdapter) instantiateDefault(symbol string) AdapterInterface {
@@ -262,8 +275,6 @@ func (ba BitfinexAdapter) instantiate(Symbol string, FetchSize int, ReloadInterv
 	ba.AbstractAdapter = aa
 	return ba
 }
-
-
 
 
 func CheckBitfinexRecord (symbol string, time_last time.Time, quantity float64) bool {

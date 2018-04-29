@@ -10,9 +10,12 @@ import (
 	"../queuemanager"
 	//"../datastorage"
 	"../models"
+	"../arbitrage"
 )
 
 var shutdown bool
+var startArbitrage chan string
+var waitArbitrage chan string
 
 type AdapterWork struct {
 	Adapter AdapterInterface
@@ -70,14 +73,25 @@ func enqueueBook(chanbook chan []models.AggregateBook){
 	}
 }
 
+func initArbitrageSynch(){
+	if startArbitrage == nil {
+		startArbitrage = make(chan string)
+	}
+
+	if waitArbitrage == nil {
+		waitArbitrage = make(chan string)
+	}
+}
+
 func (mw *AdapterBookWork) DoWork(workRoutine int) {
 	fmt.Printf("*******> WR: %d \n", workRoutine)
 	//for {
-		chanbooks, _ := mw.Adapter.getAggregateBooks()
+	initArbitrageSynch()
+		chanbook, _ := mw.Adapter.getAggregateBooks()
 
-		for i := 0; i < len(chanbooks); i++ {
-			go enqueueBook(chanbooks[i])
-		}
+		//for i := 0; i < len(chanbooks); i++ {
+			go enqueueBook(chanbook)
+		//}
 
 		/*
 		for {
@@ -105,7 +119,7 @@ type DataExtractorBooksWork struct {
 }
 
 func (mw *DataExtractorBooksWork) DoWork(workRoutine int) {
-	queuemanager.BooksDequeue()
+	queuemanager.BooksDequeue(startArbitrage, waitArbitrage)
 }
 
 
@@ -180,7 +194,7 @@ func Instantiate() {
 			}
 
 		}()
-	
+
 	/*book section
 	  1 - get the list of the symbol for each exchange
 	  2 - generete a go routine for each symbol
@@ -273,12 +287,6 @@ func doReset(reset chan int) bool{
 	}
 }
 
-
-
-
-
-
-
 type AdapterArbitrageWork struct {
 	Adapter AdapterInterface
 	WP *workpool.WorkPool
@@ -286,15 +294,29 @@ type AdapterArbitrageWork struct {
 
 func (mw *AdapterArbitrageWork) DoWork(workRoutine int) {
 	fmt.Printf("*******> WR: %d \n", workRoutine)
+	initArbitrageSynch()
 	for {
 		//pass the arbitrage selected
-		arb:= models.Arbitrage{SymbolStart: "btcusd",SymbolTransitory:"ethbtc", SymbolEnd:"ethusd", AmountStart: 0}
-		mw.Adapter.executeArbitrage(arb)
 
-		time.Sleep(10 * time.Second)
+		exchangeId := <- startArbitrage
+
+		arbitrages := arbitrage.ExtractArbitrage(exchangeId)
+
+		/*
+		for _, arbitrage := range arbitrages {
+			mw.Adapter.executeArbitrage(arbitrage)
+		}
+		*/
+
+		if len(arbitrages) > 0 {
+			print("Pippo")
+		}
+
 		if shutdown == true {
 			return
 		}
+
+		waitArbitrage <- exchangeId
 	}
 
 }

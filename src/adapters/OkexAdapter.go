@@ -152,7 +152,7 @@ func (ba OkexAdapter) getTrade() [] chan []models.Trade {
 }
 
 
-func (ba OkexAdapter) getAggregateBooks() ([] chan []models.AggregateBook, chan int) {
+func (ba OkexAdapter) getAggregateBooks() (chan []models.AggregateBook, chan int) {
 
 	//movimenti che dovranno essere ritornati
 	//bks := []models.AggregateBook{}

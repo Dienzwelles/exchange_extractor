@@ -10,6 +10,8 @@ import (
 	_ "strings"
 
 	"strings"
+	"github.com/jinzhu/gorm"
+
 )
 
 
@@ -60,26 +62,28 @@ func StoreBooks(books []models.AggregateBook){
 	//get the last lot
 	lastLot := books[0].Lot -1
 
+	//set last lot as old
+	if lastLot>=1 {
+		setLotAsOld(db, books[0].Exchange_id, books[0].Symbol)
+	}
 
 	for i := 0; i < len(books); i++ {
 
 		book := books[i]
 
-		res2 := db.NewRecord(book)
+		/*res2 := */db.NewRecord(book)
 		dbe := db.Create(&book)
 
+		/*
 		if res2{
 			log.Print("insert book")
 		}
-
+		*/
 		if dbe.Error != nil{
 			panic(dbe.Error)
 		}
 	}
-	//set last lot as old
-	if lastLot>=1 {
-		SetLotAsOld(books[0].Exchange_id, books[0].Symbol, lastLot)
-	}
+
 }
 
 
@@ -157,17 +161,9 @@ func GetLastLot(exchange string, symbol string ) int64 {
 }
 
 
-func SetLotAsOld(exchange string, symbol string, lot int64 ) {
+func setLotAsOld(db *gorm.DB, exchange string, symbol string) {
 
-	conn := NewConnection()
-	db := GetConnectionORM(conn)
-	db.LogMode(true)
-
-	defer db.Close()
-
-
-	db.Table("aggregate_books").Debug().Where("exchange_id = ? and symbol = ? and lot = ?", exchange, strings.ToUpper(symbol), lot).UpdateColumn("obsolete", 1)
-
-
+	//db.Table("aggregate_books").Debug().Where("exchange_id = ? and symbol = ? and lot = ?", exchange, strings.ToUpper(symbol), lot).UpdateColumn("obsolete", 1)
+	db.Where("exchange_id = ?", exchange).Delete(models.AggregateBook{})
 
 }

@@ -40,7 +40,7 @@ func Enqueue(trades []models.Trade){
 }
 
 func getConnection() (* amqp.Connection){
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err := amqp.Dial("amqp://guest:guest@linux-a3kt:5672/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 
 	return conn
@@ -105,6 +105,10 @@ func Dequeue(){
 
 
 func BooksEnqueue(books []models.AggregateBook){
+	if books == nil || len(books) == 0{
+		return
+	}
+
 	conn := getConnection()
 	defer conn.Close()
 
@@ -128,7 +132,7 @@ func BooksEnqueue(books []models.AggregateBook){
 }
 
 
-func BooksDequeue(){
+func BooksDequeue(startArbitrage chan string, waitArbitrage chan string){
 	conn := getConnection()
 	defer conn.Close()
 
@@ -153,13 +157,19 @@ func BooksDequeue(){
 	go func() {
 		for d := range msgs {
 			log.Printf("Received a message: %s", d.Body)
+
 			var books []models.AggregateBook
 			jsonErr := json.Unmarshal(d.Body, &books)
 			if jsonErr != nil {
 				log.Fatal(jsonErr)
 			}
 
-			datastorage.StoreBooks(books)
+			if len(books) > 0 {
+				datastorage.StoreBooks(books)
+				startArbitrage <- books[0].Exchange_id
+			}
+
+			<- waitArbitrage
 		}
 	}()
 	<-forever
