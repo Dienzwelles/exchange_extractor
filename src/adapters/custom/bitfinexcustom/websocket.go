@@ -73,7 +73,7 @@ type subscribeMsg struct {
 	Channel   string  `json:"channel"`
 	Pair      string  `json:"pair"`
 	ChanID    float64 `json:"chanId,omitempty"`
-	Precision string  `json:"precision,omitempty"`
+	Precision string  `json:"prec,omitempty"`
 	Length string `json:"len,omitempty"`
 }
 

@@ -146,7 +146,7 @@ func GetLastLot(exchange string, symbol string ) int64 {
 
 	conn := NewConnection()
 	db := GetConnectionORM(conn)
-	db.LogMode(true)
+	//db.LogMode(true)
 
 	defer db.Close()
 

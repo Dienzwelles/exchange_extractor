@@ -53,7 +53,7 @@ func asyncExtractAll(chanchannels [] chan []float64, synchs [] chan int, symbols
 			Length: "100",
 		}
 		wss.AddSubscribeFull(s)
-		//wss.AddSubscribeFull(channel, strings.ToUpper(symbols[i]), "R0", "100", chanchannels[i])
+		//wss.AddSubscribePrecision(channel, strings.ToUpper(symbols[i]), "R0", chanchannels[i])
 	}
 
 	for i := 0; i < len(synchs); i++ {
@@ -155,7 +155,7 @@ func waitBooks(chanbook chan []models.AggregateBook, chanchannel chan []float64,
 			})
 
 			//print("lunghezza array: ")
-			println(len(retChanbooks))
+			//println(len(retChanbooks))
 			chanbook <- retChanbooks
 			//chanbooks <- []models.AggregateBook{models.AggregateBook{Exchange_id: exchangeId, Symbol: strings.ToUpper(symbol), Price: 0, Count_number: 0, Amount: rawbook[0], Lot: lastLot, Obsolete: true}}
 		} else {
@@ -230,9 +230,9 @@ func (ba BitfinexAdapter) getTrade() [] chan []models.Trade {
 func (ba BitfinexAdapter) getAggregateBooks() (chan []models.AggregateBook, chan int) {
 
 	lastLot = datastorage.GetLastLot(ba.ExchangeId, ba.Symbol)
-	log.Println(ba.Symbol, lastLot)
+	//log.Println(ba.Symbol, lastLot)
 	lastLot++
-	log.Println(ba.Symbol , lastLot)
+	//log.Println(ba.Symbol , lastLot)
 
 	symbols := datastorage.GetMarkets(BITFINEX)
 	var chanchannels [] chan []float64
@@ -310,49 +310,190 @@ func CheckBitfinexRecord (symbol string, time_last time.Time, quantity float64) 
 
 func (ba BitfinexAdapter) executeArbitrage(arbitrage models.Arbitrage) bool  {
 	fmt.Println("attivata funzione arbitraggio")
+	//historicalArbitrage := models.HistoricalArbitrage{Exchange_id:BITFINEX, SymbolStart: arbitrage.SymbolStart, SymbolTransitory: arbitrage.SymbolTransitory, SymbolEnd: arbitrage.SymbolEnd  }
+
 	//ottengo application context
 	ac := properties.GetInstance()
-	fmt.Println(ac.Bitfinex.Key)
-	fmt.Println(ac.Bitfinex.Secret)
-	fmt.Println(ac.Bitfinex.ExecArbitrage)
 	client := bitfinex.NewClient().Auth(ac.Bitfinex.Key, ac.Bitfinex.Secret)
-	if (arbitrage.AmountStart >= 0) {
-		// case sell
-		if ac.Bitfinex.ExecArbitrage == "S" {
-			fmt.Println("funzione arbitraggio - esecuzione trade")
-			info, err := client.Account.Info()
+
+	valueTrade := arbitrage.PriceStart * arbitrage.AmountStart
+
+	//condition to test limit valuo for the trading
+	if valueTrade < (20 * (1 + 0.006)) {
+		fmt.Println("funzione arbitraggio - valore vendita troppo basso")
+		return false
+	}
+
+	// case buy
+	if ac.Bitfinex.ExecArbitrage == "S" {
+
+		fmt.Println("funzione arbitraggio vendita - esecuzione trade")
+		//return the max available quantity within the wallet for the first cross side b
+		q0 := GetAvailableQuantity(arbitrage.SymbolStart, client, true)
+
+
+		ratio := 1.0
+		//check if quantity is ok
+		if valueTrade  > q0 {
+			fmt.Println("funzione arbitraggio - valore da scambiare eccede la dispomibilità massima")
+			ratio = 1.0 * q0 / valueTrade
+			//return false
+		}
+
+		print("ratio: ", ratio)
+
+
+		fmt.Println("funzione arbitraggio - step 0 valore da scambiare: ", arbitrage.AmountStart *ratio)
+		//execute first trade
+		order, err := client.Orders.Create(arbitrage.SymbolStart, arbitrage.AmountStart * ratio, 3, bitfinex.OrderTypeExchangeMarket)
+		if err != nil {
+			fmt.Println("errore durante acquisto 0")
+			fmt.Println(err)
+			return false
+		} else {
+			fmt.Println("acquisto 0 avvenuto")
+			//time.Sleep(1000 * time.Millisecond)
+			fmt.Println(order)
+		}
+
+
+		if arbitrage.AmountTransitory != 0 && arbitrage.AmountEnd != 0 {
+
+			fmt.Println("funzione arbitraggio - step 1 da scambiare: ", arbitrage.AmountTransitory * ratio)
+			order1, err := client.Orders.Create(arbitrage.SymbolTransitory, arbitrage.AmountTransitory * ratio, 3, bitfinex.OrderTypeExchangeMarket)
+			if err != nil {
+				fmt.Println("errore durante acquisto 1")
+				fmt.Println(err)
+				return false
+			} else {
+				fmt.Println("acquisto 1 avvenuto")
+				//time.Sleep(1000 * time.Millisecond)
+				fmt.Println(order1)
+			}
+
+
+
+			fmt.Println("funzione arbitraggio - step 2 valore da scambiare: ", arbitrage.AmountEnd * ratio)
+			//execute second trade
+			order2, err := client.Orders.Create(arbitrage.SymbolEnd, arbitrage.AmountEnd * ratio, 3, bitfinex.OrderTypeExchangeMarket)
+			if err != nil {
+				fmt.Println("errore durante acquisto 2")
+				fmt.Println(err)
+				return false
+			} else {
+				fmt.Println("acquisto 2 avvenuto")
+				time.Sleep(500 * time.Millisecond)
+				fmt.Println(order2)
+				balances, err := client.Balances.All()
+				if err != nil {
+					fmt.Println("funzione arbitraggio - errore reperimento quantità")
+					fmt.Println(err)
+				} else {
+					fmt.Println("situazione finale arbitraggi - portafoglio valute")
+					fmt.Println(balances)
+				}
+			}
+
+
+
+		}else {
+			//return initial available quantity for the first cross side a
+			initalQuantity := GetAvailableQuantity(arbitrage.SymbolStart, client, false)
+
+			//return the max available quantity within the wallet for the second cross side b
+			q1 := GetAvailableQuantity(arbitrage.SymbolTransitory, client, true)
+			initalQuantity2 := GetAvailableQuantity(arbitrage.SymbolTransitory, client, false)
+			fmt.Println("funzione arbitraggio - q1", q1)
+			fmt.Println("funzione arbitraggio - initalQuantity2", initalQuantity2)
+
+			tick, err := client.Ticker.Get(arbitrage.SymbolTransitory)
+
 			if err != nil {
 				fmt.Println(err)
-				fmt.Println("funzione arbitraggio - errore esecuzione trade")
 			} else {
-				fmt.Println(info)
+				fmt.Printf("ticker %s  %s", arbitrage.SymbolTransitory, tick.Ask)
+				fmt.Println(tick.Ask)
+			}
+			divisore, _ := strconv.ParseFloat(tick.Ask, 64)
+			amount := (q1 - initalQuantity) / divisore
+			fmt.Println("funzione arbitraggio - step 1 da scambiare: ", amount)
+			//execute second trade
+			order1, err := client.Orders.Create(arbitrage.SymbolTransitory, amount, 3, bitfinex.OrderTypeExchangeMarket)
+			if err != nil {
+				fmt.Println("errore durante acquisto 1")
+				fmt.Println(err)
+				return false
+			} else {
+				fmt.Println("acquisto 1 avvenuto")
+				time.Sleep(1000 * time.Millisecond)
+				fmt.Println(order1)
+			}
+
+			//get value for third trade
+			q2 := GetAvailableQuantity(arbitrage.SymbolTransitory, client, false)
+			//inverto q2 e initial quantity perchè devo vendere
+			amount2 := initalQuantity2 - q2
+			fmt.Println("funzione arbitraggio - step 2 valore da scambiare: ", amount2)
+			//execute second trade
+			order2, err := client.Orders.Create(arbitrage.SymbolEnd, amount2, 3, bitfinex.OrderTypeExchangeMarket)
+			if err != nil {
+				fmt.Println("errore durante acquisto 2")
+				fmt.Println(err)
+				return false
+			} else {
+				fmt.Println("acquisto 2 avvenuto")
+				time.Sleep(1000 * time.Millisecond)
+				fmt.Println(order2)
+				balances, err := client.Balances.All()
+				if err != nil {
+					fmt.Println("funzione arbitraggio - errore reperimento quantità")
+					fmt.Println(err)
+				} else {
+					fmt.Println("situazione finale arbitraggi - portafoglio valute")
+					fmt.Println(balances)
+				}
 			}
 		}
 
-		conn := datastorage.NewConnection()
-		db := datastorage.GetConnectionORM(conn)
-		//db.LogMode(true)
-		defer db.Close()
-		historicalArbitrage := models.HistoricalArbitrage{Exchange_id:BITFINEX, SymbolStart: arbitrage.SymbolStart, SymbolTransitory: arbitrage.SymbolTransitory, SymbolEnd: arbitrage.SymbolEnd}
-
-		res2 := db.NewRecord(historicalArbitrage)
-		dbe := db.Create(&historicalArbitrage)
-
-		if res2{
-			log.Print("insert new historical arbitrage")
-		}
-
-		if dbe.Error != nil{
-			panic(dbe.Error)
-		}
-
-	} else{
-		//caso di vendita
 	}
 
+	return true
+}
 
 
-	return false
+
+func GetAvailableQuantity(symbol string, client *bitfinex.Client, buy bool) float64  {
+	// buy have to be true if you need to buy
+	currency1 := strings.ToUpper(symbol[0:3])
+	currency2 := strings.ToUpper(symbol[3:6])
+
+	/*fmt.Println(currency1)
+	fmt.Println(currency2)*/
+	//info, err := client.Account.Info()
+	balances, err := client.Balances.All()
+	if err != nil {
+		fmt.Println("funzione arbitraggio - errore reperimento quantità")
+		fmt.Println(err)
+	} else {
+		fmt.Println("funzione arbitraggio - portafoglio valute")
+		fmt.Println(balances)
+	}
+	for _, balance := range balances {
+		if strings.Compare("exchange",balance.Type) == 0 {
+			currency := strings.ToUpper(balance.Currency)
+			if strings.Compare(currency, currency2) == 0 && buy {
+				q, _ := strconv.ParseFloat(balance.Available, 64)
+				fmt.Printf("funzione arbitraggio - quantità disponibile %s: %f\n",balance.Currency, q)
+				return q
+			}
+			if strings.Compare(currency, currency1) == 0 && !buy {
+				q, _ := strconv.ParseFloat(balance.Available, 64)
+				fmt.Printf("funzione arbitraggio - quantità disponibile %s: %f\n",balance.Currency, q)
+				return q
+			}
+		}
+	}
+	return 0
 }
 
 /*

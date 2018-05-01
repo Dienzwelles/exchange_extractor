@@ -122,7 +122,12 @@ func (mw *DataExtractorBooksWork) DoWork(workRoutine int) {
 	queuemanager.BooksDequeue(startArbitrage, waitArbitrage)
 }
 
+func ProvaArbitrage(arbitrage models.Arbitrage) {
+	var a AdapterInterface
+	a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
 
+	a.executeArbitrage(arbitrage)
+}
 
 func Instantiate() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -302,11 +307,11 @@ func (mw *AdapterArbitrageWork) DoWork(workRoutine int) {
 
 		arbitrages := arbitrage.ExtractArbitrage(exchangeId)
 
-		/*
+
 		for _, arbitrage := range arbitrages {
 			mw.Adapter.executeArbitrage(arbitrage)
 		}
-		*/
+
 
 		if len(arbitrages) > 0 {
 			print("Pippo")

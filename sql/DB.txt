@@ -46,20 +46,23 @@ obsolete BOOL NOT NULL,
 
 CREATE INDEX IDX_aggregate_books ON extractor.aggregate_books (exchange_id , symbol, lot, price, count_number, amount);
 
+/*
 CREATE TABLE extractor.last_aggregate_books AS SELECT exchange_id, symbol, 1 ask, 0 price, 0 count_number, 0 amount FROM aggregate_books;
 ALTER TABLE extractor.last_aggregate_books ADD CONSTRAINT PK_last_aggregate PRIMARY KEY (exchange_id, symbol, ask, price);
-
-/*
-CREATE VIEW extractor.best_books AS
-    (SELECT MAX(bookAsk.price) price, bookAsk.exchange_id, bookAsk.symbol, 1 ask, count_number, amount FROM extractor.last_aggregate_books bookAsk
-    WHERE bookAsk.amount > 0
-    GROUP BY bookAsk.symbol)
-    UNION
-    (SELECT MIN(bookBid.price), bookBid.exchange_id, bookBid.symbol, -1 ask, count_number, amount FROM extractor.last_aggregate_books bookBid
-     WHERE bookBid.amount < 0
-    GROUP BY bookBid.symbol)
 */
 
+CREATE VIEW extractor.best_books AS
+    (SELECT bookBid.price, bookBid.exchange_id, bookBid.symbol, 1 bid, SUM(count_number) count_number, SUM(amount) amount
+        FROM extractor.aggregate_books bookBid
+        WHERE bookBid.amount > 0 and
+    		bookBid.price = (SELECT MAX(bidMax.price) FROM extractor.aggregate_books bidMax WHERE bookBid.exchange_id = bidMax.exchange_id AND bookBid.symbol = bidMax.symbol AND bidMax.amount > 0)
+        GROUP BY bookBid.price, bookBid.exchange_id, bookBid.symbol, bid)
+    UNION
+    (SELECT bookAsk.price, bookAsk.exchange_id, bookAsk.symbol, -1 ask, SUM(count_number) count_number, SUM(amount) amount
+        FROM extractor.aggregate_books bookAsk
+        WHERE bookAsk.amount < 0 and
+            bookAsk.price = (SELECT MIN(askMax.price) FROM extractor.aggregate_books askMax WHERE bookAsk.exchange_id = askMax.exchange_id AND bookAsk.symbol = askMax.symbol AND askMax.amount < 0)
+        GROUP BY bookAsk.price, bookAsk.exchange_id, bookAsk.symbol, ask)
 
 CREATE TABLE extractor.historical_arbitrages (
 id BIGINT AUTO_INCREMENT NOT NULL,

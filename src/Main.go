@@ -6,29 +6,28 @@ import (
 	"time"
 	"./adapters"
 	"./exchanges"
+	//"./arbitrage"
 )
 
 
 type BitfinexTrade struct {
 	MTS time.Time
 	AMOUNT float64
+
 	PRICE float64
 	RATE float64
 	PERIOD int
 }
 
-type subscribeMsg struct {
-	Event     string  `json:"event"`
-	Channel   string  `json:"channel"`
-	Pair      string  `json:"pair"`
-	ChanID    float64 `json:"chanId,omitempty"`
-	Frequency string `json:"freq,omitempty"`
-	Precision string `json:"prec,omitempty"`
-	Length int `json:"len,omitempty"`
-	Key float64 `json:"key,omitempty"`
+func NewBitfinexAdapter() adapters.AdapterInterface {
+	return adapters.BitfinexAdapter{}
 }
 
 func main() {
+	/*arbitrage := arbitrage.ProvaGetArbitrage()
+
+	print(arbitrage.PriceStart)
+	adapters.ProvaArbitrage(arbitrage)*/
 	exchanges.Instantiate()
 	adapters.Instantiate()
 

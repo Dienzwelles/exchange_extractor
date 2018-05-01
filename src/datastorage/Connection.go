@@ -53,7 +53,7 @@ func GetConnection(conn ConnectionEl) *sql.DB  {
 
 func GetConnectionORM(conn ConnectionEl) *gorm.DB  {
 	db, err := gorm.Open("mysql", conn.User + ":" + conn.Pass + "@tcp(" + conn.Host + ":" + conn.Port + ")/" + conn.DbName + "?charset=utf8&parseTime=True&loc=Local")
-	db.LogMode(true)
+	//db.LogMode(true)
 	if err != nil {
 		panic(err.Error())  // Just for example purpose. You should use proper error handling instead of panic
 	}
