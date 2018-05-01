@@ -42,10 +42,10 @@ func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
 		Joins("JOIN extractor.best_books inversebookend ON bookend.symbol = inversebookend.symbol AND bookend.exchange_id = inversebookend.exchange_id AND bookend.bid <> inversebookend.bid").
 		Joins("JOIN extractor.best_books inversebookdirect ON bookdirect.symbol = inversebookdirect.symbol AND bookdirect.exchange_id = inversebookdirect.exchange_id AND bookdirect.bid <> inversebookdirect.bid").
 		Select("IF(bookstart.bid > 0, (bookend.price / bookdirect.price - bookstart.price), (bookdirect.price/bookend.price - (1/bookstart.price))) - ?/1000 profitability," +
-		" IF(bookstart.bid > 0, inversebookdirect.price, inversebookend.price) first_buy_price_limit, inversebookend.bid * inversebookend.amount first_buy_amount * (1 - ?/1000), " +
-		" bookstart.price second_buy_price_limit, bookstart.bid * bookstart.amount second_buy_amount * (1 - ?/1000), " +
-		" IF(bookstart.bid > 0, inversebookend.price, inversebookdirect.price) sell_price_limit, inversebookdirect.bid * inversebookdirect.amount sell_amount * (1 - ?/1000), " +
-		" bookstart.exchange_id, bookstart.symbol start_symbol, IF(bookstart.bid > 0, bookend.symbol, bookdirect.symbol) end_symbol, IF(bookstart.bid > 0, bookdirect.symbol, bookend.symbol) direct_symbol", 5, 2, 2, 1).
+		" IF(bookstart.bid > 0, inversebookdirect.price, inversebookend.price) first_buy_price_limit, inversebookend.bid * inversebookend.amount first_buy_amount, " +
+		" bookstart.price second_buy_price_limit, bookstart.bid * bookstart.amount second_buy_amount, " +
+		" IF(bookstart.bid > 0, inversebookend.price, inversebookdirect.price) sell_price_limit, inversebookdirect.bid * inversebookdirect.amount sell_amount, " +
+		" bookstart.exchange_id, bookstart.symbol start_symbol, IF(bookstart.bid > 0, bookend.symbol, bookdirect.symbol) end_symbol, IF(bookstart.bid > 0, bookdirect.symbol, bookend.symbol) direct_symbol", 5).
 		Where("bookstart.exchange_id = ? AND SUBSTRING(bookend.symbol, 4, 3) = SUBSTRING(bookdirect.symbol, 4, 3)" +
 		" AND ((bookstart.bid, bookend.bid, bookdirect.bid) = (1,-1, 1) OR (bookstart.bid, bookend.bid, bookdirect.bid) = (-1, 1, -1))", exchangeId).
 		Order("profitability desc").
@@ -69,6 +69,11 @@ func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
 			//log.Fatal(err)
 			return nil
 		}
+
+		profRecord.firstBuyAmount = profRecord.firstBuyAmount * 0.9978
+		profRecord.secondBuyAmount = profRecord.secondBuyAmount * 0.9978
+		profRecord.sellAmount = profRecord.sellAmount * 0.9988
+
 		bookStartSymbols = append(bookStartSymbols, profRecord.bookstart)
 		tradeEndSymbols = append(tradeEndSymbols, profRecord.bookend)
 		bookDirectSymbols = append(bookDirectSymbols, profRecord.bookdirect)

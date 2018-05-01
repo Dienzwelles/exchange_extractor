@@ -13,7 +13,6 @@ import (
 type BitfinexTrade struct {
 	MTS time.Time
 	AMOUNT float64
-
 	PRICE float64
 	RATE float64
 	PERIOD int
