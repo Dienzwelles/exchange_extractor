@@ -7,11 +7,9 @@ import (
 	"log"
 	_ "github.com/jinzhu/gorm"
 	_ "fmt"
-	_ "strings"
-
 	"strings"
 	"github.com/jinzhu/gorm"
-
+	"../utils/sqlcustom"
 )
 
 
@@ -40,8 +38,10 @@ func StoreTrades(trades []models.Trade){
 		res2 := db.NewRecord(trade)
 		dbe := db.Create(&trade)
 
+		defer dbe.Close()
+
 		if res2{
-			log.Print("insert new trade")
+			//log.Print("insert new trade")
 		}
 
 		if dbe.Error != nil{
@@ -51,14 +51,11 @@ func StoreTrades(trades []models.Trade){
 }
 
 
-func StoreBooks(books []models.AggregateBook){
+func StoreBooks(books []models.AggregateBooks){
 
 	conn := NewConnection()
 	db := GetConnectionORM(conn)
-
 	defer db.Close()
-
-
 	//get the last lot
 	lastLot := books[0].Lot -1
 
@@ -66,24 +63,25 @@ func StoreBooks(books []models.AggregateBook){
 	if lastLot>=1 {
 		setLotAsOld(db, books[0].Exchange_id, books[0].Symbol)
 	}
-
+	sqlcustom.BatchInsert(db.DB(), books)
+/*
 	for i := 0; i < len(books); i++ {
 
-		book := books[i]
+		//book := books[i]
 
-		/*res2 := */db.NewRecord(book)
-		dbe := db.Create(&book)
+		res2 := db.NewRecord(books)
+		dbe := db.Create(&books)
+		defer dbe.Close()
 
-		/*
 		if res2{
 			log.Print("insert book")
 		}
-		*/
-		if dbe.Error != nil{
-			panic(dbe.Error)
+
+		if db.Error != nil{
+			panic(db.Error)
 		}
 	}
-
+*/
 }
 
 
@@ -99,18 +97,21 @@ func StoreMarkets(markets []models.Market) {
 		//fmt.Println(market)
 		res2 := db.NewRecord(market)
 		rows, _ := db.Table("markets").Select("exchange_id, symbol").Where("exchange_id = ? and symbol = ? ", market.Exchange_id, market.Symbol).Rows()
+
+		defer rows.Close()
 		count := 0
 		for rows.Next() {
 			count++
 		}
 
 		if  count  == 0  {
-			dbe := db.Create(&market)
+			db.Create(&market)
+
 			if res2{
 				log.Print("insert new exchange market")
 			}
-			if dbe.Error != nil{
-				panic(dbe.Error)
+			if db.Error != nil{
+				panic(db.Error)
 			}
 		}
 
@@ -130,6 +131,8 @@ func GetMarkets(exchange_id string) []string{
 
 
 	rows, _ := db.Table("markets").Select("symbol").Where("exchange_id = ? and evaluated = 1 ", exchange_id).Rows()
+	defer rows.Close()
+
 	var markets []string
 	for rows.Next() {
 		var symbol string
@@ -150,11 +153,9 @@ func GetLastLot(exchange string, symbol string ) int64 {
 
 	defer db.Close()
 
+	var record models.AggregateBooks
 
-	var record models.AggregateBook
-
-	db.Model(&record).Debug().Where("exchange_id = ? and symbol = ? ", exchange, strings.ToUpper(symbol)).Order("lot desc").Last(&record)
-
+	db.Model(&record).Where("exchange_id = ? and symbol = ? ", exchange, strings.ToUpper(symbol)).Order("lot desc").Last(&record)
 
 	log.Println(record.Lot, exchange, strings.ToUpper(symbol))
 	return record.Lot

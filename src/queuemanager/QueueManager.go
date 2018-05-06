@@ -7,6 +7,7 @@ import (
 	"../models"
 	"github.com/streadway/amqp"
 	"../datastorage"
+
 )
 
 func failOnError(err error, msg string) {
@@ -90,7 +91,7 @@ func Dequeue(){
 
 	go func() {
 		for d := range msgs {
-			log.Printf("Received a message: %s", d.Body)
+			//log.Printf("Received a message: %s", d.Body)
 			var trades []models.Trade
 			jsonErr := json.Unmarshal(d.Body, &trades)
 			if jsonErr != nil {
@@ -104,7 +105,7 @@ func Dequeue(){
 }
 
 
-func BooksEnqueue(books []models.AggregateBook){
+func BooksEnqueue(books []models.AggregateBooks){
 	if books == nil || len(books) == 0{
 		return
 	}
@@ -155,22 +156,51 @@ func BooksDequeue(startArbitrage chan string, waitArbitrage chan string){
 	forever := make(chan bool)
 
 	go func() {
+		wait := "START"
+		var waitChan chan string
 		for d := range msgs {
-			log.Printf("Received a message: %s", d.Body)
+			//log.Printf("Received a message: %s", d.Body)
 
-			var books []models.AggregateBook
+			var books []models.AggregateBooks
 			jsonErr := json.Unmarshal(d.Body, &books)
 			if jsonErr != nil {
 				log.Fatal(jsonErr)
 			}
 
 			if len(books) > 0 {
-				datastorage.StoreBooks(books)
-				startArbitrage <- books[0].Exchange_id
+				if len(wait) > 0 {
+					waitChan = make(chan string)
+					wait = ""
+					go storeAndArbitrage(books, waitChan, startArbitrage, waitArbitrage)
+				} /*else {
+					println("scartato")
+				}*/
 			}
 
-			<- waitArbitrage
+			if len(wait) == 0 {
+				wait = waitOperation(waitChan)
+			}
 		}
 	}()
 	<-forever
+}
+
+func storeAndArbitrage(books []models.AggregateBooks, waitChan chan string, startArbitrage chan string, waitArbitrage chan string){
+	//t := time.Now()
+	//fmt.Println(t.Format("20060102150405"))
+	datastorage.StoreBooks(books)
+	exchangeId := books[0].Exchange_id
+	startArbitrage <- exchangeId
+
+	<- waitArbitrage
+	waitChan <- exchangeId
+}
+
+func waitOperation(waitChan chan string) string{
+	select {
+	case msg := <-waitChan:
+		return msg
+	default:
+		return ""
+	}
 }

@@ -6,7 +6,7 @@ type AdapterInterface interface {
 	instantiate(symbol string, fetchSize int, reloadInterval int) AdapterInterface
 	instantiateDefault(symbol string) AdapterInterface
 	getTrade() [] chan []models.Trade
-	getAggregateBooks() (chan []models.AggregateBook, chan int)
+	getAggregateBooks() (chan []models.AggregateBooks, chan int)
 	executeArbitrage(arbitrage models.Arbitrage) bool
 }
 

@@ -15,17 +15,18 @@ type volumesEl struct {
 	trade string
 }
 type profEl struct {
-	profitability 		float64
-	firstBuyPriceLimit  float64
-	firstBuyAmount  float64
-	secondBuyPriceLimit float64
-	secondBuyAmount float64
-	sellPriceLimit    	float64
-	sellAmount    	float64
 	exchange      		string
-	bookstart     		string
-	bookend       		string
-	bookdirect    		string
+	profitability 		float64
+	firstMarketPrice  float64
+	firstAmount  float64
+	secondMarketPrice float64
+	secondAmount float64
+	thirdMarketPrice    	float64
+	thirdAmount    	float64
+
+	firstSymbol     	string
+	secondSymbol   		string
+	thirdSymbol    		string
 }
 
 func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
@@ -35,19 +36,27 @@ func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
 
 	defer db.Close()
 
+	selectData := "bookstart.exchange_id, " +
+		"IF(bookstart.bid > 0, (inversebookend.price / inversebookdirect.price - inversebookstart.price) - ?/1000, (inversebookstart.price*bookdirect.price/bookend.price - 1) - ?/1000) profitability, " +
+			"IF(bookstart.bid > 0, inversebookdirect.price, bookend.price) first_market_price, " +
+			"IF(bookstart.bid > 0, -inversebookdirect.amount, -bookend.amount) first_amount, " +
+			"inversebookstart.price second_market_price, " +
+			"-inversebookstart.amount second_amount, " +
+			"IF(bookstart.bid > 0, inversebookend.price, bookdirect.price) third_market_price, " +
+			"IF(bookstart.bid > 0, -inversebookend.amount, -bookdirect.amount) third_amount, " +
+			"IF(bookstart.bid > 0, inversebookdirect.symbol, bookend.symbol) first_symbol, " +
+			"inversebookstart.symbol second_symbol, " +
+			"IF(bookstart.bid > 0, inversebookend.symbol, bookdirect.symbol) third_symbol"
+
 	rowsProfittabilities, err := db.Table("extractor.best_books bookstart").
 		Joins("JOIN extractor.best_books bookend on SUBSTRING(bookstart.symbol, 1, 3) = SUBSTRING(bookend.symbol, 1, 3) AND bookstart.exchange_id = bookend.exchange_id").
 		Joins("JOIN extractor.best_books bookdirect ON SUBSTRING(bookstart.symbol, 4, 3) = SUBSTRING(bookdirect.symbol, 1, 3) AND bookstart.exchange_id = bookdirect.exchange_id").
 		Joins("JOIN extractor.best_books inversebookstart ON bookstart.symbol = inversebookstart.symbol AND bookstart.exchange_id = inversebookstart.exchange_id AND bookstart.bid <> inversebookstart.bid").
 		Joins("JOIN extractor.best_books inversebookend ON bookend.symbol = inversebookend.symbol AND bookend.exchange_id = inversebookend.exchange_id AND bookend.bid <> inversebookend.bid").
 		Joins("JOIN extractor.best_books inversebookdirect ON bookdirect.symbol = inversebookdirect.symbol AND bookdirect.exchange_id = inversebookdirect.exchange_id AND bookdirect.bid <> inversebookdirect.bid").
-		Select("IF(bookstart.bid > 0, (bookend.price / bookdirect.price - bookstart.price), (bookdirect.price/bookend.price - (1/bookstart.price))) - ?/1000 profitability," +
-		" IF(bookstart.bid > 0, inversebookdirect.price, inversebookend.price) first_buy_price_limit, inversebookend.bid * inversebookend.amount first_buy_amount, " +
-		" bookstart.price second_buy_price_limit, bookstart.bid * bookstart.amount second_buy_amount, " +
-		" IF(bookstart.bid > 0, inversebookend.price, inversebookdirect.price) sell_price_limit, inversebookdirect.bid * inversebookdirect.amount sell_amount, " +
-		" bookstart.exchange_id, bookstart.symbol start_symbol, IF(bookstart.bid > 0, bookend.symbol, bookdirect.symbol) end_symbol, IF(bookstart.bid > 0, bookdirect.symbol, bookend.symbol) direct_symbol", 5).
+		Select(selectData, 5, 4).
 		Where("bookstart.exchange_id = ? AND SUBSTRING(bookend.symbol, 4, 3) = SUBSTRING(bookdirect.symbol, 4, 3)" +
-		" AND ((bookstart.bid, bookend.bid, bookdirect.bid) = (1,-1, 1) OR (bookstart.bid, bookend.bid, bookdirect.bid) = (-1, 1, -1))", exchangeId).
+		" AND ((bookstart.bid, bookend.bid, bookdirect.bid) = (1,-1, 1) OR (bookstart.bid, bookend.bid, bookdirect.bid) = (-1, -1, 1))", exchangeId).
 		Order("profitability desc").
 		Having("profitability >= ?", 0.00000000000000000001).Rows()
 
@@ -63,20 +72,18 @@ func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
 
 	defer rowsProfittabilities.Close()
 	for rowsProfittabilities.Next(){
-		err:=rowsProfittabilities.Scan(&profRecord.profitability, &profRecord.firstBuyPriceLimit, &profRecord.firstBuyAmount, &profRecord.secondBuyPriceLimit, &profRecord.secondBuyAmount,
-			&profRecord.sellPriceLimit, &profRecord.sellAmount, &profRecord.exchange, &profRecord.bookstart, &profRecord.bookend, &profRecord.bookdirect)
+		err:=rowsProfittabilities.Scan(&profRecord.exchange, &profRecord.profitability, &profRecord.firstMarketPrice, &profRecord.firstAmount, &profRecord.secondMarketPrice, &profRecord.secondAmount,
+			&profRecord.thirdMarketPrice, &profRecord.thirdAmount, &profRecord.firstSymbol, &profRecord.secondSymbol, &profRecord.thirdSymbol)
 		if err != nil {
 			//log.Fatal(err)
 			return nil
 		}
 
-		profRecord.firstBuyAmount = profRecord.firstBuyAmount * 0.9978
-		profRecord.secondBuyAmount = profRecord.secondBuyAmount * 0.9978
-		profRecord.sellAmount = profRecord.sellAmount * 0.9988
+		print(profRecord.firstAmount)
 
-		bookStartSymbols = append(bookStartSymbols, profRecord.bookstart)
-		tradeEndSymbols = append(tradeEndSymbols, profRecord.bookend)
-		bookDirectSymbols = append(bookDirectSymbols, profRecord.bookdirect)
+		bookStartSymbols = append(bookStartSymbols, profRecord.secondSymbol)
+		tradeEndSymbols = append(tradeEndSymbols, profRecord.thirdSymbol)
+		bookDirectSymbols = append(bookDirectSymbols, profRecord.firstSymbol)
 		profittabilities = append(profittabilities, profRecord)
 	}
 
@@ -115,7 +122,7 @@ func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
 	var ret [] models.Arbitrage
 	for i := 0; i < len(profittabilities); i++ {
 		profittable := profittabilities[i]
-		volume := getVolume(volumes, profittable.bookdirect)
+		volume := getVolume(volumes, profittable.firstSymbol)
 		/*tradeEndSymbol := tradeEndSymbols[i]
 		tradeStartSymbol := bookStartSymbols[i]
 		tradeDirectSymbol := bookDirectSymbols[i]*/
@@ -177,52 +184,31 @@ func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
 			volumeRatio = volume.tradeRatio
 		}
 
-		firstAmount := profittable.firstBuyAmount / (2 + 2 * Sgn(profittable.profitability) * volumeRatio)
+		firstAmount := profittable.firstAmount / (2 + 2 * Sgn(profittable.profitability) * volumeRatio)
 		print(firstAmount)
 		ret = append(ret, getArbitrage(profittable, firstAmount))
 		/*}*/
 	}
 
-	return ret
-}
-
-func ProvaGetArbitrage() models.Arbitrage{
-	profittable := profEl{
-		profitability: -0.004953110746587458,
-		firstBuyPriceLimit: 8976.9000000000,
-		firstBuyAmount: -1.9778950000,
-		secondBuyPriceLimit: 0.0732770000,
-		secondBuyAmount: 16.3383951400,
-		sellPriceLimit:656.9700000000,
-		sellAmount: 34.8146422300,
-		exchange: "Bitfinex",
-		bookdirect: "BTCUSD",
-		bookstart: "ETHBTC",
-		bookend: "ETHUSD",
-	}
-
-	arbitrage := getArbitrage(profittable, 0.005570)
-
-	return arbitrage
-
+	return []models.Arbitrage{}//ret
 }
 
 func getArbitrage(profittable profEl, firstAmount float64) (models.Arbitrage){
 
-	firstBuy := firstAmount * profittable.firstBuyPriceLimit
+	firstBuy := firstAmount * profittable.firstMarketPrice
 
 
-	direct := profittable.bookdirect[0:3] == profittable.bookstart[3:6]
-	secondBuyPrice := ternaryFloat64(direct, profittable.firstBuyPriceLimit, profittable.sellPriceLimit) * profittable.secondBuyPriceLimit
-	secondBuy := profittable.secondBuyAmount * secondBuyPrice
+	direct := profittable.firstSymbol[0:3] == profittable.secondSymbol[3:6]
+	secondBuyPrice := ternaryFloat64(direct, profittable.firstMarketPrice, profittable.thirdMarketPrice) * profittable.secondMarketPrice
+	secondBuy := profittable.secondAmount * secondBuyPrice
 
-	sell := profittable.sellAmount * profittable.sellPriceLimit
+	sell := profittable.thirdAmount * profittable.thirdMarketPrice
 
 	minPrice := math.Min(firstBuy, math.Min(secondBuy, sell))
 
-	return models.Arbitrage{SymbolStart: profittable.bookdirect, SymbolTransitory: profittable.bookstart, SymbolEnd: profittable.bookend,
-		AmountStart: minPrice/profittable.firstBuyPriceLimit, AmountTransitory: minPrice/secondBuyPrice, AmountEnd: minPrice/profittable.sellPriceLimit,
-		PriceStart: profittable.firstBuyPriceLimit, PriceTransitory: profittable.secondBuyPriceLimit, PriceEnd: profittable.sellPriceLimit}
+	return models.Arbitrage{SymbolStart: profittable.firstSymbol, SymbolTransitory: profittable.secondSymbol, SymbolEnd: profittable.thirdSymbol,
+		AmountStart: minPrice/profittable.firstMarketPrice, AmountTransitory: minPrice/secondBuyPrice, AmountEnd: minPrice/profittable.thirdMarketPrice,
+		PriceStart: profittable.firstMarketPrice, PriceTransitory: profittable.secondMarketPrice, PriceEnd: profittable.thirdMarketPrice}
 }
 
 

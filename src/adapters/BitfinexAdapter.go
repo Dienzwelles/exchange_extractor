@@ -34,7 +34,7 @@ type BitfinexAdapter struct{
 	AbstractAdapter
 	StartMs int64
 	initBook bool
-	chanbook chan []models.AggregateBook
+	chanbook chan []models.AggregateBooks
 }
 
 func NewBitfinexAdapter() AdapterInterface {
@@ -50,7 +50,7 @@ func asyncExtractAll(chanchannels [] chan []float64, synchs [] chan int, symbols
 			Pair: strings.ToUpper(symbols[i]),
 			Chan: chanchannels[i],
 			Precision: "R0",
-			Length: "100",
+			Length: "25",
 		}
 		wss.AddSubscribeFull(s)
 		//wss.AddSubscribePrecision(channel, strings.ToUpper(symbols[i]), "R0", chanchannels[i])
@@ -66,7 +66,7 @@ func asyncExtractAll(chanchannels [] chan []float64, synchs [] chan int, symbols
 func extractAll(chanchannels [] chan []float64, synchs [] chan int, symbols []string, channel string) *bitfinexcustom.WebSocketService{
 	ac := properties.GetInstance()
 	client := bitfinex.NewClient().Auth(ac.Bitfinex.Key, ac.Bitfinex.Secret)
-
+	/*
 	trades, err:= client.Trades.All("BTCUSD", time.Now(), 50)
 
 	if err != nil{
@@ -74,7 +74,7 @@ func extractAll(chanchannels [] chan []float64, synchs [] chan int, symbols []st
 	}
 
 	print(trades)
-
+	*/
 	wss := bitfinexcustom.NewWebSocketService(client)
 
 	go asyncExtractAll(chanchannels, synchs, symbols, channel, wss)
@@ -129,10 +129,8 @@ func waitTrades(chantrade chan []models.Trade, chanchannel chan []float64, synch
 	}
 }
 
-func waitBooks(chanbook chan []models.AggregateBook, chanchannel chan []float64, synch chan int, reset [] chan int, exchangeId string, symbol string){
+func waitBooks(chanbook chan []models.AggregateBooks, chanchannel chan []float64, synch chan int, reset [] chan int, exchangeId string, symbol string){
 	synch <- 1
-
-	inDiff := false
 
 	for {
 		rawbook := <-chanchannel
@@ -141,12 +139,10 @@ func waitBooks(chanbook chan []models.AggregateBook, chanchannel chan []float64,
 			//println("pluto: " + symbol)
 			lastLot++
 
-			inDiff = true
-
-			retChanbooks := []models.AggregateBook{}
+			retChanbooks := []models.AggregateBooks{}
 
 			bookmap.Range(func(ki, vi interface{}) bool {
-				_, v := ki.(float64), vi.(models.AggregateBook)
+				_, v := ki.(float64), vi.(models.AggregateBooks)
 
 				v.Lot = lastLot
 				retChanbooks = append(retChanbooks, v)
@@ -156,12 +152,13 @@ func waitBooks(chanbook chan []models.AggregateBook, chanchannel chan []float64,
 
 			//print("lunghezza array: ")
 			//println(len(retChanbooks))
+
 			chanbook <- retChanbooks
 			//chanbooks <- []models.AggregateBook{models.AggregateBook{Exchange_id: exchangeId, Symbol: strings.ToUpper(symbol), Price: 0, Count_number: 0, Amount: rawbook[0], Lot: lastLot, Obsolete: true}}
 		} else {
-			aggregateBook := models.AggregateBook{Exchange_id: exchangeId, Symbol: strings.ToUpper(symbol), Price: rawbook[1], Count_number: 1, Amount: rawbook[2], Lot: lastLot, Obsolete: false}
+			aggregateBook := models.AggregateBooks{Exchange_id: exchangeId, Symbol: strings.ToUpper(symbol), Price: rawbook[1], Count_number: 1, Amount: rawbook[2], Lot: lastLot, Obsolete: false}
 
-			if aggregateBook.Price == 0 && inDiff{
+			if aggregateBook.Price == 0 {
 				bookmap.Delete(rawbook[0])
 			} else {
 				bookmap.Store(rawbook[0], aggregateBook)
@@ -179,29 +176,29 @@ func closeWss(wss *bitfinex.WebSocketService, closed bool){
 	}
 }
 */
-func (ba BitfinexAdapter) instantiateExtracts(symbols []string, chanbook chan []models.AggregateBook, chanchannels []chan []float64, synchs []chan int, reset [] chan int){
-	for {
-		print("1:extract-open lot:")
-		println(lastLot)
-		wss := extractAll(chanchannels, synchs, symbols, "book")
-		for i := 0; i < len(symbols); i++ {
-			ba.instantiateExtract(symbols[i], chanbook, chanchannels[i], synchs[i], reset, i)
-		}
-
-		for i := 0; i < len(reset); i++ {
-			<-reset[i]
-		}
-
-		println("2:extract-closing ")
-		wss.ClearSubscriptions()
-		wss.Close()
-		print("3:extractclosed ")
-		println(lastLot)
-		time.Sleep(200 * time.Millisecond)
+func (ba BitfinexAdapter) instantiateExtracts(symbols []string, chanbook chan []models.AggregateBooks, chanchannels []chan []float64, synchs []chan int, reset [] chan int){
+	//for {
+	print("1:extract-open lot:")
+	println(lastLot)
+	wss := extractAll(chanchannels, synchs, symbols, "book")
+	for i := 0; i < len(symbols); i++ {
+		ba.instantiateExtract(symbols[i], chanbook, chanchannels[i], synchs[i], reset, i)
 	}
+
+	for i := 0; i < len(reset); i++ {
+		<-reset[i]
+	}
+
+	println("2:extract-closing ")
+	wss.ClearSubscriptions()
+	wss.Close()
+	print("3:extractclosed ")
+	println(lastLot)
+	time.Sleep(200 * time.Millisecond)
+	//}
 }
 
-func (ba BitfinexAdapter) instantiateExtract(symbol string, chanbook chan []models.AggregateBook, chanchannel chan []float64, synch chan int, reset [] chan int, i int){
+func (ba BitfinexAdapter) instantiateExtract(symbol string, chanbook chan []models.AggregateBooks, chanchannel chan []float64, synch chan int, reset [] chan int, i int){
 	go waitBooks(chanbook, chanchannel, synch, reset, ba.ExchangeId, symbol)
 }
 
@@ -227,7 +224,7 @@ func (ba BitfinexAdapter) getTrade() [] chan []models.Trade {
 	return chantrades
 }
 
-func (ba BitfinexAdapter) getAggregateBooks() (chan []models.AggregateBook, chan int) {
+func (ba BitfinexAdapter) getAggregateBooks() (chan []models.AggregateBooks, chan int) {
 
 	lastLot = datastorage.GetLastLot(ba.ExchangeId, ba.Symbol)
 	//log.Println(ba.Symbol, lastLot)
@@ -241,7 +238,7 @@ func (ba BitfinexAdapter) getAggregateBooks() (chan []models.AggregateBook, chan
 	outReset := make(chan int)
 
 	if !ba.initBook {
-		ba.chanbook = make(chan []models.AggregateBook)
+		ba.chanbook = make(chan []models.AggregateBooks)
 	}
 
 	for i := 0; i < len(symbols); i++ {
@@ -329,29 +326,29 @@ func (ba BitfinexAdapter) executeArbitrage(arbitrage models.Arbitrage) bool  {
 
 		fmt.Println("funzione arbitraggio vendita - esecuzione trade")
 		//return the max available quantity within the wallet for the first cross side b
-		q0 := GetAvailableQuantity(arbitrage.SymbolStart, client, true)
+		//q0 := GetAvailableQuantity(arbitrage.SymbolStart, client, true)
 
 
 		ratio := 1.0
 		//check if quantity is ok
-		if valueTrade  > q0 {
+		//if valueTrade  > q0 {
 			fmt.Println("funzione arbitraggio - valore da scambiare eccede la dispomibilità massima")
-			ratio = 1.0 * q0 / valueTrade
+			ratio = 1.0 * 70 / valueTrade
 			//return false
-		}
+		//}
 
 		print("ratio: ", ratio)
 
 
-		fmt.Println("funzione arbitraggio - step 0 valore da scambiare: ", arbitrage.AmountStart *ratio)
+		fmt.Println("funzione arbitraggio - step 1 valore da scambiare: ", arbitrage.AmountStart *ratio)
 		//execute first trade
 		order, err := client.Orders.Create(arbitrage.SymbolStart, arbitrage.AmountStart * ratio, 3, bitfinex.OrderTypeExchangeMarket)
 		if err != nil {
-			fmt.Println("errore durante acquisto 0")
+			fmt.Println("errore durante trade 1")
 			fmt.Println(err)
 			return false
 		} else {
-			fmt.Println("acquisto 0 avvenuto")
+			fmt.Println("trade 1 avvenuto")
 			//time.Sleep(1000 * time.Millisecond)
 			fmt.Println(order)
 		}
@@ -359,29 +356,29 @@ func (ba BitfinexAdapter) executeArbitrage(arbitrage models.Arbitrage) bool  {
 
 		if arbitrage.AmountTransitory != 0 && arbitrage.AmountEnd != 0 {
 
-			fmt.Println("funzione arbitraggio - step 1 da scambiare: ", arbitrage.AmountTransitory * ratio)
-			order1, err := client.Orders.Create(arbitrage.SymbolTransitory, arbitrage.AmountTransitory * ratio, 3, bitfinex.OrderTypeExchangeMarket)
+			fmt.Println("funzione arbitraggio - step 2 da scambiare: ", arbitrage.AmountTransitory * ratio * 0.099785)
+			order1, err := client.Orders.Create(arbitrage.SymbolTransitory, arbitrage.AmountTransitory * ratio * 0.099785, 3, bitfinex.OrderTypeExchangeMarket)
 			if err != nil {
-				fmt.Println("errore durante acquisto 1")
+				fmt.Println("errore durante trade 2")
 				fmt.Println(err)
 				return false
 			} else {
-				fmt.Println("acquisto 1 avvenuto")
+				fmt.Println("trade 2 avvenuto")
 				//time.Sleep(1000 * time.Millisecond)
 				fmt.Println(order1)
 			}
 
 
 
-			fmt.Println("funzione arbitraggio - step 2 valore da scambiare: ", arbitrage.AmountEnd * ratio)
+			fmt.Println("funzione arbitraggio - step 3 valore da scambiare: ", arbitrage.AmountEnd * ratio * 0.998875)
 			//execute second trade
-			order2, err := client.Orders.Create(arbitrage.SymbolEnd, arbitrage.AmountEnd * ratio, 3, bitfinex.OrderTypeExchangeMarket)
+			order2, err := client.Orders.Create(arbitrage.SymbolEnd, arbitrage.AmountEnd * ratio * 0.998875, 3, bitfinex.OrderTypeExchangeMarket)
 			if err != nil {
-				fmt.Println("errore durante acquisto 2")
+				fmt.Println("errore durante trade 3")
 				fmt.Println(err)
 				return false
 			} else {
-				fmt.Println("acquisto 2 avvenuto")
+				fmt.Println("trade 3 avvenuto")
 				time.Sleep(500 * time.Millisecond)
 				fmt.Println(order2)
 				balances, err := client.Balances.All()

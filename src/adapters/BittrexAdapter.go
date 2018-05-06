@@ -99,7 +99,7 @@ func (ba BittrexAdapter) getTrade() [] chan []models.Trade {
 	return nil//trd
 }
 
-func (ba BittrexAdapter) getAggregateBooks() (chan []models.AggregateBook, chan int) {
+func (ba BittrexAdapter) getAggregateBooks() (chan []models.AggregateBooks, chan int) {
 
 	//movimenti che dovranno essere ritornati
 	//bks := []models.AggregateBook{}
