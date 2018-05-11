@@ -1,9 +1,9 @@
 package adapters
 
 import (
-	"bufio"
+	_"bufio"
 	"fmt"
-	"os"
+	_"os"
 	"runtime"
 	"time"
 	"github.com/goinggo/workpool"
@@ -11,6 +11,8 @@ import (
 	//"../datastorage"
 	"../models"
 	"../arbitrage"
+	_"bufio"
+	_"os"
 )
 
 var shutdown bool
@@ -23,7 +25,7 @@ type AdapterWork struct {
 }
 
 func (mw *AdapterWork) DoWork(workRoutine int) {
-	fmt.Printf("*******> WR: %d \n", workRoutine)
+	fmt.Printf("trades*******> WR: %d \n", workRoutine)
 
 	chantrades := mw.Adapter.getTrade()
 
@@ -129,7 +131,7 @@ func ProvaArbitrage(arbitrage models.Arbitrage) {
 	a.executeArbitrage(arbitrage)
 }
 
-func Instantiate() {
+func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	workPool := workpool.New(8, 800)
@@ -267,7 +269,7 @@ func Instantiate() {
 
 	}()
 
-
+	/*
 	for{
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -276,10 +278,15 @@ func Instantiate() {
 	reader.ReadString('\n')
 
 	shutdown = true
-
+	*/
+	fmt.Println("attesa messaggio di stop")
+	shutdown = <-ch
 	fmt.Println("Shutting Down")
 
-	workPool.Shutdown("adapterWork")
+	go workPool.Shutdown("adapterWork")
+	time.Sleep(2000 * time.Millisecond)
+	fmt.Println("end shutdown")
+	exitMain <- true
 
 }
 
