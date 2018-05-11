@@ -63,13 +63,13 @@ func enqueueTrade(chantrade chan []models.Trade){
 	}
 }
 
-func enqueueBook(chanbook chan []models.AggregateBook){
+func enqueueBook(chanbook chan []models.AggregateBooks){
 	for {
 		data := <-chanbook
 		if data != nil && len(data) > 0{
 			queuemanager.BooksEnqueue(data)
-		} else{
-			print("pippo")
+		} else {
+			panic("Error empty data")
 		}
 
 	}
@@ -245,6 +245,7 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 			return
 		}
 	}()
+
 
 	//subroutine to execute arbitrage
 	go func() {
