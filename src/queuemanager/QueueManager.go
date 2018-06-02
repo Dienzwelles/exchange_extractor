@@ -7,8 +7,17 @@ import (
 	"../models"
 	"github.com/streadway/amqp"
 	"../datastorage"
+	"../properties"
 
 )
+
+type ConnectionRabbitMQ struct {
+	Host	 string
+	Port	 string
+	User	 string
+	Pass	 string
+	DbName	 string
+}
 
 func failOnError(err error, msg string) {
 	if err != nil {
@@ -41,7 +50,11 @@ func Enqueue(trades []models.Trade){
 }
 
 func getConnection() (* amqp.Connection){
-	conn, err := amqp.Dial("amqp://guest:guest@linux-a3kt:5672/")
+
+	//reperisco dalle properties i parametri di connessione
+	ac := properties.GetInstance()
+
+	conn, err := amqp.Dial("amqp://" + ac.RabbitMQ.User + ":" + ac.RabbitMQ.Password + "@"  + ac.RabbitMQ.Host + ":" + ac.RabbitMQ.Port + "/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 
 	return conn

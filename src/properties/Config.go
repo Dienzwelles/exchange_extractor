@@ -21,6 +21,13 @@ type Context struct {
 		Secret  string `json:"secret"`
 		ExecArbitrage  string `json:"exec_arbitrage"`
 	} `json:"bitfinex"`
+	RabbitMQ struct {
+		Host     string `json:"host"`
+		Port     string `json:"port"`
+
+		User     string `json:"user"`
+		Password string `json:"password"`
+	} `json:"rabbitmq"`
 }
 
 var instance *Context
