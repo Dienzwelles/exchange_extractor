@@ -53,7 +53,11 @@ func getConnection() (* amqp.Connection){
 
 	//reperisco dalle properties i parametri di connessione
 	ac := properties.GetInstance()
-
+	/* only to check the credentials
+	fmt.Println(ac.RabbitMQ.User )
+	fmt.Println(ac.RabbitMQ.Password )
+	fmt.Println("amqp://" + ac.RabbitMQ.User + ":" + ac.RabbitMQ.Password + "@"  + ac.RabbitMQ.Host + ":" + ac.RabbitMQ.Port + "/")
+	*/
 	conn, err := amqp.Dial("amqp://" + ac.RabbitMQ.User + ":" + ac.RabbitMQ.Password + "@"  + ac.RabbitMQ.Host + ":" + ac.RabbitMQ.Port + "/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 
