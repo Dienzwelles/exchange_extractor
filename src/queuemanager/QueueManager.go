@@ -8,8 +8,11 @@ import (
 	"github.com/streadway/amqp"
 	"../datastorage"
 	"../properties"
-
+	"sync"
 )
+
+var once sync.Once
+var connection * amqp.Connection
 
 type ConnectionRabbitMQ struct {
 	Host	 string
@@ -28,7 +31,6 @@ func failOnError(err error, msg string) {
 
 func Enqueue(trades []models.Trade){
 	conn := getConnection()
-	defer conn.Close()
 
 	ch := getChannel(conn)
 	defer ch.Close()
@@ -49,7 +51,7 @@ func Enqueue(trades []models.Trade){
 	failOnError(err, "Failed to publish a message")
 }
 
-func getConnection() (* amqp.Connection){
+func setup(){
 
 	//reperisco dalle properties i parametri di connessione
 	ac := properties.GetInstance()
@@ -61,7 +63,12 @@ func getConnection() (* amqp.Connection){
 	conn, err := amqp.Dial("amqp://" + ac.RabbitMQ.User + ":" + ac.RabbitMQ.Password + "@"  + ac.RabbitMQ.Host + ":" + ac.RabbitMQ.Port + "/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 
-	return conn
+	connection = conn
+}
+
+func getConnection() (* amqp.Connection){
+	once.Do(setup)
+	return connection
 }
 
 func getChannel(conn *amqp.Connection) (*amqp.Channel){
@@ -86,7 +93,6 @@ func getQueue(channel *amqp.Channel, name string) (amqp.Queue){
 
 func Dequeue(){
 	conn := getConnection()
-	defer conn.Close()
 
 	ch := getChannel(conn)
 	defer ch.Close()
@@ -128,7 +134,6 @@ func BooksEnqueue(books []models.AggregateBooks){
 	}
 
 	conn := getConnection()
-	defer conn.Close()
 
 	ch := getChannel(conn)
 	defer ch.Close()
@@ -152,7 +157,6 @@ func BooksEnqueue(books []models.AggregateBooks){
 
 func BooksDequeue(startArbitrage chan string, waitArbitrage chan string){
 	conn := getConnection()
-	defer conn.Close()
 
 	ch := getChannel(conn)
 	defer ch.Close()

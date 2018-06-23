@@ -55,8 +55,8 @@ func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
 		Joins("JOIN extractor.best_books inversebookend ON bookend.symbol = inversebookend.symbol AND bookend.exchange_id = inversebookend.exchange_id AND bookend.bid <> inversebookend.bid").
 		Joins("JOIN extractor.best_books inversebookdirect ON bookdirect.symbol = inversebookdirect.symbol AND bookdirect.exchange_id = inversebookdirect.exchange_id AND bookdirect.bid <> inversebookdirect.bid").
 		Select(selectData, 5, 4).
-		Where("bookstart.exchange_id = ? AND SUBSTRING(bookend.symbol, 4, 3) = SUBSTRING(bookdirect.symbol, 4, 3)" +
-		" AND ((bookstart.bid, bookend.bid, bookdirect.bid) = (1,-1, 1) OR (bookstart.bid, bookend.bid, bookdirect.bid) = (-1, -1, 1))", exchangeId).
+		Where("bookstart.exchange_id = ? AND SUBSTRING(inversebookdirect.symbol, 4, 3) = ? AND SUBSTRING(bookend.symbol, 4, 3) = ? AND SUBSTRING(bookend.symbol, 4, 3) = SUBSTRING(bookdirect.symbol, 4, 3)" +
+		" AND ((bookstart.bid, bookend.bid, bookdirect.bid) = (1,-1, 1) OR (bookstart.bid, bookend.bid, bookdirect.bid) = (-1, -1, 1))", exchangeId, "USD", "USD").
 		Order("profitability desc").
 		Having("profitability >= ?", 0.00000000000000000001).Rows()
 
@@ -122,7 +122,7 @@ func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
 	var ret [] models.Arbitrage
 	for i := 0; i < len(profittabilities); i++ {
 		profittable := profittabilities[i]
-		volume := getVolume(volumes, profittable.firstSymbol)
+
 		/*tradeEndSymbol := tradeEndSymbols[i]
 		tradeStartSymbol := bookStartSymbols[i]
 		tradeDirectSymbol := bookDirectSymbols[i]*/
@@ -177,40 +177,56 @@ func ExtractArbitrage(exchangeId string) ([] models.Arbitrage){
 			}
 			*/
 
-		var volumeRatio float64
-		volumeRatio = 0.0
 
-		if volume != nil {
-			volumeRatio = volume.tradeRatio
-		}
-
-		firstAmount := profittable.firstAmount / (2 + 2 * Sgn(profittable.profitability) * volumeRatio)
-		print(firstAmount)
-		ret = append(ret, getArbitrage(profittable, firstAmount))
+		ret = append(ret, getArbitrage(profittable, volumes))
 		/*}*/
 	}
 
-	return []models.Arbitrage{}//ret
+	return ret
 }
 
-func getArbitrage(profittable profEl, firstAmount float64) (models.Arbitrage){
+func getArbitrage(profittable profEl, volumes []volumesEl) (models.Arbitrage){
 
-	firstBuy := firstAmount * profittable.firstMarketPrice
-
+	firstTrade := profittable.firstAmount * profittable.firstMarketPrice
 
 	direct := profittable.firstSymbol[0:3] == profittable.secondSymbol[3:6]
-	secondBuyPrice := ternaryFloat64(direct, profittable.firstMarketPrice, profittable.thirdMarketPrice) * profittable.secondMarketPrice
-	secondBuy := profittable.secondAmount * secondBuyPrice
+	secondMarketPrice := ternaryFloat64(direct, profittable.firstMarketPrice, profittable.thirdMarketPrice) * profittable.secondMarketPrice
+	secondTrade := profittable.secondAmount * secondMarketPrice
 
-	sell := profittable.thirdAmount * profittable.thirdMarketPrice
+	thirdTrade := profittable.thirdAmount * profittable.thirdMarketPrice
 
-	minPrice := math.Min(firstBuy, math.Min(secondBuy, sell))
+	absFirstTrade := math.Abs(firstTrade)
+	absSecondTrade := math.Abs(secondTrade)
+	absThirdTrade := math.Abs(thirdTrade)
+
+	minPrice := math.Min(absFirstTrade, math.Min(absSecondTrade, absThirdTrade))
+	cross := ternary(firstTrade < secondTrade && firstTrade< absThirdTrade, profittable.firstSymbol,
+					ternary(secondTrade < thirdTrade, profittable.secondSymbol, profittable.thirdSymbol))
+	minPriceAmount := ternaryFloat64(firstTrade < secondTrade && firstTrade< absThirdTrade, profittable.firstAmount,
+		ternaryFloat64(secondTrade < thirdTrade, profittable.secondAmount, profittable.thirdAmount))
+
+
+	ratio := calculateRatio(minPriceAmount, cross, volumes)
 
 	return models.Arbitrage{SymbolStart: profittable.firstSymbol, SymbolTransitory: profittable.secondSymbol, SymbolEnd: profittable.thirdSymbol,
-		AmountStart: minPrice/profittable.firstMarketPrice, AmountTransitory: minPrice/secondBuyPrice, AmountEnd: minPrice/profittable.thirdMarketPrice,
+		AmountStart: minPrice/profittable.firstMarketPrice * ratio * Sgn(profittable.firstAmount), AmountTransitory: minPrice/secondMarketPrice * ratio * Sgn(profittable.secondAmount),
+		AmountEnd: minPrice/profittable.thirdMarketPrice * ratio * Sgn(profittable.thirdAmount),
 		PriceStart: profittable.firstMarketPrice, PriceTransitory: profittable.secondMarketPrice, PriceEnd: profittable.thirdMarketPrice}
 }
 
+func calculateRatio(amount float64, cross string, volumes []volumesEl) float64{
+	volume := getVolume(volumes, cross)
+
+	var volumeRatio float64
+	volumeRatio = 0.0
+
+	if volume != nil {
+		volumeRatio = volume.tradeRatio
+	}
+
+	return 1 / (2 * (1 + math.Max(Sgn(amount) * volumeRatio, 0)))
+
+}
 
 func getVolume(volumes []volumesEl, trade string) *volumesEl{
 	if(volumes != nil){
