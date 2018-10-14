@@ -64,7 +64,7 @@ func OkexAddItem(trades []models.Trade, item models.Trade) []models.Trade {
 
 func (ba OkexAdapter) getTrade() [] chan []models.Trade {
 
-	trd := []models.Trade{}
+	//trd := []models.Trade{}
 
 	//ritorna la lista dei mercati attualmente attivi
 	symbols := datastorage.GetMarkets(OKEX)
@@ -76,7 +76,8 @@ func (ba OkexAdapter) getTrade() [] chan []models.Trade {
 		// recupero ultimo time stamp inserito per il mercato in esame
 		okex_ts_last_transaction[symbol] = GetLastIDOkex(symbol)
 
-		marketHistory, err := o.GetSpotRecentTrades("ltc_btc", "0")
+		//marketHistory, err := o.GetSpotRecentTrades("ltc_btc", "0")
+		/*marketHistory, err := o.GetSpotRecentTrades(nil)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -103,7 +104,7 @@ func (ba OkexAdapter) getTrade() [] chan []models.Trade {
 			trd = AddItem(trd, b)
 
 		}
-
+		*/
 	}
 
 	return nil//trd

@@ -141,7 +141,7 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 		go func() {
 
 			var a AdapterInterface
-			a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
+			a = NewBitfinexAdapter2().instantiateDefault("BTCUSD")
 
 			adapterWork := AdapterWork{
 				Adapter: a,
@@ -162,10 +162,11 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 			}
 
 			//bittrex istance
-			var br AdapterInterface
-			br = NewBittrexAdapter().instantiateDefault("BTC-DOGE")
+			//var br AdapterInterface
+			//br = NewBittrexAdapter().instantiateDefault("BTC-DOGE")
 
 			//adapter bittrex
+			/*
 			brAdapterWork := AdapterWork{
 				Adapter: br,
 				WP:      workPool,
@@ -188,13 +189,12 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 			}
 
 
-
 			if err := workPool.PostWork("okAdapterWork", &okAdapterWork); err != nil {
 				fmt.Printf("ERROR: %s\n", err)
 				time.Sleep(100 * time.Millisecond)
 			}
 
-
+			*/
 
 			if shutdown == true {
 				return
@@ -209,7 +209,7 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 
 
 	//subroutine to get books
-
+/*
 	go func() {
 
 		//adapter istance
@@ -245,8 +245,8 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 			return
 		}
 	}()
-
-
+*/
+/*
 	//subroutine to execute arbitrage
 	go func() {
 
@@ -269,7 +269,7 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 		}
 
 	}()
-
+*/
 	/*
 	for{
 		time.Sleep(100 * time.Millisecond)
@@ -280,6 +280,7 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 
 	shutdown = true
 	*/
+
 	fmt.Println("attesa messaggio di stop")
 	shutdown = <-ch
 	fmt.Println("Shutting Down")
