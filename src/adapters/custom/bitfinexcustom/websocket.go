@@ -127,7 +127,10 @@ func (w *WebSocketService) Connect() error {
 
 // Close web socket connection
 func (w *WebSocketService) Close() {
-	w.ws.Close()
+	if w.ws != nil {
+		w.ws.Close()
+		w.ws = nil
+	}
 }
 
 func (w *WebSocketService) AddSubscribeFull(data SubscribeToChannelData) {
@@ -168,18 +171,25 @@ func (w *WebSocketService) ClearSubscriptions() {
 func (w *WebSocketService) sendSubscribeMessages() error {
 	for _, s := range w.subscribes {
 		msg, _ := json.Marshal(subscribeMsg{
-			Event:   "subscribe",
-			Channel: s.Channel,
-			Pair:    s.Pair,
+			Event:     "subscribe",
+			Channel:   s.Channel,
+			Pair:      s.Pair,
 			Precision: s.Precision,
-			Length: s.Length,
+			Length:    s.Length,
 		})
 
 		println(string(msg))
-		err := w.ws.WriteMessage(websocket.TextMessage, msg)
-		if err != nil {
-			return err
+		if w.ws == nil{
+			w.Connect()
 		}
+
+		if w.ws != nil {
+			err := w.ws.WriteMessage(websocket.TextMessage, msg)
+			if err != nil {
+				return err
+			}
+		}
+
 	}
 	return nil
 }
@@ -193,15 +203,17 @@ func (w *WebSocketService) Subscribe() error {
 	}
 
 	for {
-		_, p, err := w.ws.ReadMessage()
-		if err != nil {
-			return err
-		}
+		if w.ws != nil {
+			_, p, err := w.ws.ReadMessage()
+			if err != nil {
+				return err
+			}
 
-		if bytes.Contains(p, []byte("event")) {
-			w.handleEventMessage(p)
-		} else {
-			w.handleDataMessage(p)
+			if bytes.Contains(p, []byte("event")) {
+				w.handleEventMessage(p)
+			} else {
+				w.handleDataMessage(p)
+			}
 		}
 	}
 

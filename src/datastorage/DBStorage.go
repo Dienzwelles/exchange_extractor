@@ -1,6 +1,7 @@
 package datastorage
 
 import (
+	"math"
 	"../models"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	_ "github.com/go-sql-driver/mysql"
@@ -10,7 +11,16 @@ import (
 	"strings"
 	"github.com/jinzhu/gorm"
 	"../utils/sqlcustom"
+	"../utils"
 )
+
+type AggregateBooks struct {
+	//Id int `gorm:"AUTO_INCREMENT"`
+	Exchange_id string
+	Symbol string
+	Price float64
+	Amount float64
+}
 
 
 func StoreTrades(trades []models.Trade){
@@ -57,13 +67,66 @@ func StoreBooks(books []models.AggregateBooks){
 	db := GetConnectionORM(conn)
 	defer db.Close()
 	//get the last lot
-	lastLot := books[0].Lot -1
+	//lastLot := books[0].Lot -1
 
 	//set last lot as old
-	if lastLot>=1 {
+	/*if lastLot>=1 {
 		setLotAsOld(db, books[0].Exchange_id, books[0].Symbol)
+	}*/
+	//sqlcustom.
+
+	obsoleteBooks, newBooks, newBooksDelete  := spliceBooks(books)
+
+	if len(newBooks) > 0 {
+		rs, err := sqlcustom.BatchDelete(db.DB(), newBooksDelete)
+
+		if err != nil{
+			panic(err)
+		} else {
+			_, err2 := rs.RowsAffected()
+
+			if err2 != nil{
+				panic(err2)
+			}
+
+		}
+
+		for _, v := range newBooks {
+			println("log: ", v.Symbol, ", ", v.Price, ", ",  v.Amount)
+		}
+
+		rs, err = sqlcustom.BatchInsert(db.DB(), newBooks)
+		if err != nil{
+			panic(err)
+		} else {
+			rows, err2 := rs.RowsAffected()
+
+			if err2 != nil{
+				panic(err2)
+			}
+			println("inseriti", rows, "da inserire ", len(books))
+		}
 	}
-	sqlcustom.BatchInsert(db.DB(), books)
+
+	if len(obsoleteBooks) > 0 {
+		rs, err := sqlcustom.BatchDelete(db.DB(), obsoleteBooks)
+
+		if err != nil{
+			panic(err)
+		} else {
+			rows, err2 := rs.RowsAffected()
+
+			if err2 != nil{
+				panic(err2)
+			}
+			println("cancellati", rows, "da cancellare ", len(obsoleteBooks))
+			if int(rows) != len(obsoleteBooks){
+				print("pippo")
+			}
+		}
+	}
+
+
 /*
 	for i := 0; i < len(books); i++ {
 
@@ -84,7 +147,29 @@ func StoreBooks(books []models.AggregateBooks){
 */
 }
 
+const float64EqualityThreshold = 1e-9
 
+func almostEqual(a, b float64) bool {
+	return math.Abs(a - b) <= float64EqualityThreshold
+}
+
+func spliceBooks(books []models.AggregateBooks) ([]AggregateBooks, []models.AggregateBooks, []AggregateBooks){
+	obsoleteBooks := []AggregateBooks{}
+	newBooks := []models.AggregateBooks{}
+	newBooksDelete := []AggregateBooks{}
+
+	for _, s := range books {
+		if (s.Obsolete) {
+			v := AggregateBooks{Exchange_id: s.Exchange_id, Symbol: s.Symbol, Price: s.Price, Amount: utils.Sgn(s.Amount)}
+			obsoleteBooks = append(obsoleteBooks, v)
+		} else{
+			v := AggregateBooks{Exchange_id: s.Exchange_id, Symbol: s.Symbol, Price: s.Price, Amount: utils.Sgn(s.Amount)}
+			newBooksDelete = append(newBooksDelete, v)
+			newBooks = append(newBooks, s)
+		}
+	}
+	return obsoleteBooks, newBooks, newBooksDelete
+}
 
 
 func StoreMarkets(markets []models.Market) {

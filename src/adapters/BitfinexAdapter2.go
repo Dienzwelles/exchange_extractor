@@ -1,6 +1,9 @@
 package adapters
 
 import (
+	"../utils"
+	"bytes"
+	"fmt"
 	"../models"
 	"time"
 	"log"
@@ -28,6 +31,9 @@ var lastLotBTFV2Symbol string
 var bookmapBTFV2 *syncmap.Map
 var waitSendBookBTFV2 bool
 
+const POSITIVE_AMOUNT  = "1"
+const NEGATIVE_AMOUNT = "0"
+
 type BitfinexAdapter2 struct{
 	AbstractAdapter
 	StartMs int64
@@ -39,7 +45,27 @@ func NewBitfinexAdapter2() AdapterInterface {
 	return BitfinexAdapter2{initBook:false}
 }
 
-func asyncExtractAllBTFV2(chanchannels [] chan []float64, synchs [] chan int, symbols []string, channel string, wssclient *websocket.Client){
+func subscribeBooksBTFV2(chanchannels [] chan []float64, synchs [] chan int, symbols []string, channel string, wssclient *websocket.Client) *websocket.Client{
+	wg := sync.WaitGroup{}
+	wg.Add(3) // 1. Info with version, 2. Subscription event, 3. 3 x data message
+
+	ctx, cxl := context.WithTimeout(context.Background(), time.Second*500)
+	defer cxl()
+
+	for i := 0; i < len(symbols); i++ {
+		id, err := wssclient.SubscribeBook(ctx, bitfinex.TradingPrefix+strings.ToUpper(symbols[i]), "P0", "F0", 25)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		log.Print(id)
+	}
+
+	return wssclient
+
+}
+
+func subscribeTradesBTFV2(chanchannels [] chan []float64, synchs [] chan int, symbols []string, channel string, wssclient *websocket.Client) *websocket.Client{
 
 	wg := sync.WaitGroup{}
 	wg.Add(3) // 1. Info with version, 2. Subscription event, 3. 3 x data message
@@ -76,25 +102,6 @@ func asyncExtractAllBTFV2(chanchannels [] chan []float64, synchs [] chan int, sy
 	}
 
 	//wss.Subscribe()
-}
-
-func extractAllBTFV2(chanchannels [] chan []float64, synchs [] chan int, symbols []string, channel string, wssclient *websocket.Client) *websocket.Client{
-
-	if wssclient == nil {
-		//ac := properties.GetInstance()
-		//client := bitfinex.NewClient().Auth(ac.Bitfinex.Key, ac.Bitfinex.Secret)
-		/*
-		trades, err:= client.Trades.All("BTCUSD", time.Now(), 50)
-
-		if err != nil{
-			panic(err)
-		}
-
-		print(trades)
-		*/
-
-	}
-	asyncExtractAllBTFV2(chanchannels, synchs, symbols, channel, wssclient)
 
 	return wssclient
 }
@@ -199,9 +206,100 @@ func waitTradesBTFV2(chantrade chan []models.Trade, chanchannel chan []float64, 
 	}*/
 }
 
-func waitBooksBTFV2(chanbook chan []models.AggregateBooks, chanchannel chan []float64, synch chan int, reset [] chan int, exchangeId string, symbol string){
-	synch <- 1
+func getMapKey(book models.AggregateBooks) string{
+	var str bytes.Buffer
+	str.WriteString(book.Symbol)
+	str.WriteString(fmt.Sprint(book.Price))
+	str.WriteString(utils.Ternary(book.Amount > 0, POSITIVE_AMOUNT, NEGATIVE_AMOUNT))
 
+	return str.String()
+}
+
+func waitBooksBTFV2(chanbook chan []models.AggregateBooks, chanchannel chan []float64, synch chan int, reset [] chan int, exchangeId string, symbol string, wssclient *websocket.Client){
+	//synch <- 1
+
+	errch := make(chan error)
+	go func() {
+		for {
+			select {
+			case msg := <-wssclient.Listen():
+				if msg == nil {
+					return
+				}
+				log.Printf("recv msg: %#v", msg)
+				retChanbooks := []models.AggregateBooks{}
+				switch m := msg.(type) {
+				case error:
+					errch <- msg.(error)
+				case *websocket.UnsubscribeEvent:
+					//unsubs <- m
+				case *websocket.SubscribeEvent:
+					//subs <- m
+				case *websocket.InfoEvent:
+					//infos <- m
+				case *bitfinex.BookUpdateSnapshot:
+					//books <- m
+					//CONTROLLARE GESTIONE MAPPA! CONCATENARE Cross + Prezzo + Direzione!
+					for i := 0; i < len(m.Snapshot); i++{
+						log.Print("---------------------", m.Snapshot[i])
+						data := m.Snapshot[i]
+						amount := utils.TernaryFloat64(data.Side == bitfinex.Ask, data.Amount, -data.Amount)
+						aggregateBook := models.AggregateBooks{Exchange_id: exchangeId, Symbol: strings.ToUpper(data.Symbol), Price: data.Price, Count_number: float64(data.Count), Amount: amount, Lot: lastLotBTFV2, Obsolete: false}
+						bookmapBTFV2.Store(getMapKey(aggregateBook), aggregateBook)
+						retChanbooks = append(retChanbooks, aggregateBook)
+					}
+
+					chanbook <- retChanbooks
+					lastLotBTFV2++
+				case *bitfinex.BookUpdate:
+					//books <- m
+					log.Print(m)
+
+					amount := utils.TernaryFloat64(m.Side == bitfinex.Ask, m.Amount, -m.Amount)
+					aggregateBook := models.AggregateBooks{Exchange_id: exchangeId, Symbol: strings.ToUpper(m.Symbol), Price: m.Price, Count_number: float64(m.Count), Amount: amount, Lot: lastLotBTFV2, Obsolete: false}
+
+					if m.Action == bitfinex.BookUpdateEntry {
+						bookmapBTFV2.Store(getMapKey(aggregateBook), aggregateBook)
+						aggregateBook.Obsolete = false
+					} else if m.Action == bitfinex.BookRemoveEntry {
+						bookmapBTFV2.Delete(getMapKey(aggregateBook))
+						aggregateBook.Obsolete = true
+					}
+
+					/*
+					if m.Action == bitfinex.BookUpdateEntry || m.Action == bitfinex.BookRemoveEntry {
+						retChanbooks := []models.AggregateBooks{}
+
+						bookmapBTFV2.Range(func(ki, vi interface{}) bool {
+							_, v := ki.(string), vi.(models.AggregateBooks)
+
+							v.Lot = lastLotBTFV2
+							retChanbooks = append(retChanbooks, v)
+
+							return true
+						})
+
+						log.Print("Lunghezza: ", len(retChanbooks))
+						chanbook <- retChanbooks
+						lastLotBTFV2++
+					}
+					*/
+
+					if m.Action == bitfinex.BookUpdateEntry || m.Action == bitfinex.BookRemoveEntry {
+						aggregateBook.Lot = lastLotBTFV2
+						retChanbooks = append(retChanbooks, aggregateBook)
+						chanbook <- retChanbooks
+						lastLotBTFV2++
+					}
+
+
+				default:
+					log.Print("test recv: %#v", msg)
+				}
+			}
+		}
+	}()
+/*/*
 	for {
 		rawbook := <-chanchannel
 
@@ -213,6 +311,7 @@ func waitBooksBTFV2(chanbook chan []models.AggregateBooks, chanchannel chan []fl
 
 			bookmapBTFV2.Range(func(ki, vi interface{}) bool{
 			/*for k,_ := range bookmapBTFV2{*/
+			/*/*
 				_, v := ki.(float64), vi.(models.AggregateBooks)
 				//v := bookmapBTFV2[k]
 				v.Lot = lastLotBTFV2
@@ -247,6 +346,7 @@ func waitBooksBTFV2(chanbook chan []models.AggregateBooks, chanchannel chan []fl
 		}
 
 	}
+			*/
 }
 
 /*
@@ -257,10 +357,9 @@ func closeWss(wss *bitfinex.WebSocketService, closed bool){
 	}
 }
 */
-func (ba BitfinexAdapter2) instantiateExtracts(symbols []string, chanbook chan []models.AggregateBooks, chanchannels []chan []float64, reset [] chan int){
-	var wssclient * websocket.Client
-	wssclient = nil
-	for {
+func (ba BitfinexAdapter2) instantiateBooks(symbols []string, chanbook chan []models.AggregateBooks, chanchannels []chan []float64, reset [] chan int){
+
+	//for {
 		waitSendBookBTFV2= false
 		var synchs [] chan int
 		print("1:extract-open lot:")
@@ -270,17 +369,24 @@ func (ba BitfinexAdapter2) instantiateExtracts(symbols []string, chanbook chan [
 			synchs = append(synchs, make(chan int))
 		}
 
-		wssclient = extractAllBTFV2(chanchannels, synchs, symbols, "book", wssclient)
-		for i := 0; i < len(symbols); i++ {
-			ba.instantiateExtract(symbols[i], chanbook, chanchannels[i], synchs[i], reset, i)
+		wssclient := websocket.New()
+		err := wssclient.Connect()
+		if err != nil {
+			log.Fatal("Error connecting to web socket : ", err)
 		}
 
+		//for i := 0; i < len(symbols); i++ {
+			ba.waitBooksBTFV2(symbols[0], chanbook, chanchannels[0], synchs[0], reset, 0, wssclient)
+
+		//}
+
+		wssclient = subscribeBooksBTFV2(chanchannels, synchs, symbols, "book", wssclient)
 		/*
 		for i := 0; i < len(reset); i++ {
 			<-reset[i]
 		}
 		*/
-		time.Sleep(10000 * time.Millisecond)
+		/*time.Sleep(10000 * time.Millisecond)
 		println("2:extract-closing ")
 		//wss.ClearSubscriptions()
 		//wss.Close()
@@ -311,11 +417,11 @@ func (ba BitfinexAdapter2) instantiateExtracts(symbols []string, chanbook chan [
 		})
 		print("Size after delete")
 		println(size)
-	}
+	}*/
 }
 
-func (ba BitfinexAdapter2) instantiateExtract(symbol string, chanbook chan []models.AggregateBooks, chanchannel chan []float64, synch chan int, reset [] chan int, i int){
-	go waitBooks(chanbook, chanchannel, synch, reset, ba.ExchangeId, symbol)
+func (ba BitfinexAdapter2) waitBooksBTFV2(symbol string, chanbook chan []models.AggregateBooks, chanchannel chan []float64, synch chan int, reset [] chan int, i int, wssclient *websocket.Client){
+	waitBooksBTFV2(chanbook, chanchannel, synch, reset, ba.ExchangeId, symbol, wssclient)
 }
 
 func (ba BitfinexAdapter2) getTrade() [] chan []models.Trade {
@@ -344,7 +450,7 @@ func (ba BitfinexAdapter2) getTrade() [] chan []models.Trade {
 		waitTradesBTFV2(chantrades[0], chanchannels[0], synchs[0], ba.ExchangeId, symbols[0], wssclient)
 	//}
 
-	extractAllBTFV2(chanchannels, synchs, symbols, "trades", wssclient)
+	subscribeTradesBTFV2(chanchannels, synchs, symbols, "trades", wssclient)
 
 	return chantrades
 }
@@ -376,7 +482,7 @@ func (ba BitfinexAdapter2) getAggregateBooks() (chan []models.AggregateBooks, ch
 	ba.initBook = true
 
 	//for i := 0; i < len(synchs); i++ {
-	go ba.instantiateExtracts(symbols, ba.chanbook, chanchannels, reset)
+	go ba.instantiateBooks(symbols, ba.chanbook, chanchannels, reset)
 	//}
 
 

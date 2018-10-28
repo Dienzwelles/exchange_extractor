@@ -67,6 +67,9 @@ func enqueueBook(chanbook chan []models.AggregateBooks){
 	for {
 		data := <-chanbook
 		if data != nil && len(data) > 0{
+			for _, v := range data {
+				println("Inserisco in coda", v.Symbol, v.Price)
+			}
 			queuemanager.BooksEnqueue(data)
 		} else {
 			panic("Error empty data")
@@ -137,7 +140,7 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 	workPool := workpool.New(8, 800)
 
 	shutdown = false // Race Condition, Sorry
-
+/*
 		go func() {
 
 			var a AdapterInterface
@@ -195,13 +198,14 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 			}
 
 			*/
+			/*
 
 			if shutdown == true {
 				return
 			}
 
 		}()
-
+*/
 	/*book section
 	  1 - get the list of the symbol for each exchange
 	  2 - generete a go routine for each symbol
@@ -209,12 +213,12 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 
 
 	//subroutine to get books
-/*
+
 	go func() {
 
 		//adapter istance
 		var a AdapterInterface
-		a = NewBitfinexAdapter().instantiateDefault("BTCUSD")
+		a = NewBitfinexAdapter2().instantiateDefault("BTCUSD")
 
 		adapterBookWork := AdapterBookWork{
 			Adapter: a,
@@ -245,7 +249,7 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 			return
 		}
 	}()
-*/
+
 /*
 	//subroutine to execute arbitrage
 	go func() {

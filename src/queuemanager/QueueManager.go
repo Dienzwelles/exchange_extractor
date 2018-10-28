@@ -177,8 +177,8 @@ func BooksDequeue(startArbitrage chan string, waitArbitrage chan string){
 	forever := make(chan bool)
 
 	go func() {
-		wait := "START"
-		var waitChan chan string
+		//wait := "START"
+		//var waitChan chan string
 		for d := range msgs {
 			//log.Printf("Received a message: %s", d.Body)
 
@@ -188,19 +188,24 @@ func BooksDequeue(startArbitrage chan string, waitArbitrage chan string){
 				log.Fatal(jsonErr)
 			}
 
+			print("inizio scrittura")
+
 			if len(books) > 0 {
-				if len(wait) > 0 {
-					waitChan = make(chan string)
-					wait = ""
-					go storeAndArbitrage(books, waitChan, startArbitrage, waitArbitrage)
-				} /*else {
+				//if len(wait) > 0 {
+					//waitChan = make(chan string)
+					//wait = ""
+					storeAndArbitrage(books, nil/*waitChan*/, startArbitrage, waitArbitrage)
+				/*} /*else {
 					println("scartato")
 				}*/
 			}
 
+			print("fine scrittura")
+			/*
 			if len(wait) == 0 {
 				wait = waitOperation(waitChan)
 			}
+			*/
 		}
 	}()
 	<-forever
@@ -209,12 +214,13 @@ func BooksDequeue(startArbitrage chan string, waitArbitrage chan string){
 func storeAndArbitrage(books []models.AggregateBooks, waitChan chan string, startArbitrage chan string, waitArbitrage chan string){
 	//t := time.Now()
 	//fmt.Println(t.Format("20060102150405"))
-	datastorage.StoreBooks(books)
-	exchangeId := books[0].Exchange_id
-	startArbitrage <- exchangeId
 
-	<- waitArbitrage
-	waitChan <- exchangeId
+	datastorage.StoreBooks(books)
+	//exchangeId := books[0].Exchange_id
+	//startArbitrage <- exchangeId
+
+	//<- waitArbitrage
+	//waitChan <- exchangeId
 }
 
 func waitOperation(waitChan chan string) string{

@@ -8,6 +8,7 @@ import(
 	//"math"
 	//"go/constant"
 	"math"
+	"../utils"
 )
 
 type volumesEl struct {
@@ -190,7 +191,7 @@ func getArbitrage(profittable profEl, volumes []volumesEl) (models.Arbitrage){
 	firstTrade := profittable.firstAmount * profittable.firstMarketPrice
 
 	direct := profittable.firstSymbol[0:3] == profittable.secondSymbol[3:6]
-	secondMarketPrice := ternaryFloat64(direct, profittable.firstMarketPrice, profittable.thirdMarketPrice) * profittable.secondMarketPrice
+	secondMarketPrice := utils.TernaryFloat64(direct, profittable.firstMarketPrice, profittable.thirdMarketPrice) * profittable.secondMarketPrice
 	secondTrade := profittable.secondAmount * secondMarketPrice
 
 	thirdTrade := profittable.thirdAmount * profittable.thirdMarketPrice
@@ -200,17 +201,17 @@ func getArbitrage(profittable profEl, volumes []volumesEl) (models.Arbitrage){
 	absThirdTrade := math.Abs(thirdTrade)
 
 	minPrice := math.Min(absFirstTrade, math.Min(absSecondTrade, absThirdTrade))
-	cross := ternary(firstTrade < secondTrade && firstTrade< absThirdTrade, profittable.firstSymbol,
-					ternary(secondTrade < thirdTrade, profittable.secondSymbol, profittable.thirdSymbol))
-	minPriceAmount := ternaryFloat64(firstTrade < secondTrade && firstTrade< absThirdTrade, profittable.firstAmount,
-		ternaryFloat64(secondTrade < thirdTrade, profittable.secondAmount, profittable.thirdAmount))
+	cross := utils.Ternary(firstTrade < secondTrade && firstTrade< absThirdTrade, profittable.firstSymbol,
+		utils.Ternary(secondTrade < thirdTrade, profittable.secondSymbol, profittable.thirdSymbol))
+	minPriceAmount := utils.TernaryFloat64(firstTrade < secondTrade && firstTrade< absThirdTrade, profittable.firstAmount,
+		utils.TernaryFloat64(secondTrade < thirdTrade, profittable.secondAmount, profittable.thirdAmount))
 
 
 	ratio := calculateRatio(minPriceAmount, cross, volumes)
 
 	return models.Arbitrage{SymbolStart: profittable.firstSymbol, SymbolTransitory: profittable.secondSymbol, SymbolEnd: profittable.thirdSymbol,
-		AmountStart: minPrice/profittable.firstMarketPrice * ratio * Sgn(profittable.firstAmount), AmountTransitory: minPrice/secondMarketPrice * ratio * Sgn(profittable.secondAmount),
-		AmountEnd: minPrice/profittable.thirdMarketPrice * ratio * Sgn(profittable.thirdAmount),
+		AmountStart: minPrice/profittable.firstMarketPrice * ratio * utils.Sgn(profittable.firstAmount), AmountTransitory: minPrice/secondMarketPrice * ratio * utils.Sgn(profittable.secondAmount),
+		AmountEnd: minPrice/profittable.thirdMarketPrice * ratio * utils.Sgn(profittable.thirdAmount),
 		PriceStart: profittable.firstMarketPrice, PriceTransitory: profittable.secondMarketPrice, PriceEnd: profittable.thirdMarketPrice}
 }
 
@@ -224,7 +225,7 @@ func calculateRatio(amount float64, cross string, volumes []volumesEl) float64{
 		volumeRatio = volume.tradeRatio
 	}
 
-	return 1 / (2 * (1 + math.Max(Sgn(amount) * volumeRatio, 0)))
+	return 1 / (2 * (1 + math.Max(utils.Sgn(amount) * volumeRatio, 0)))
 
 }
 
@@ -238,30 +239,4 @@ func getVolume(volumes []volumesEl, trade string) *volumesEl{
 	}
 
 	return nil
-}
-
-func Sgn(a float64) float64 {
-	switch {
-	case a < 0:
-		return -1
-	case a > 0:
-		return +1
-	}
-	return 0
-}
-
-func ternaryFloat64(test bool, a float64, b float64) float64{
-	if(test){
-		return a
-	}
-
-	return b
-}
-
-func ternary(test bool, a string, b string) string{
-	if(test){
-		return a
-	}
-
-	return b
 }

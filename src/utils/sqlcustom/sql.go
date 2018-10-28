@@ -1,12 +1,13 @@
 package sqlcustom
 
 import (
-"database/sql"
-"errors"
-"fmt"
-"reflect"
-"strings"
-"unicode"
+	"../../utils"
+	"database/sql"
+	"errors"
+	"fmt"
+	"reflect"
+	"strings"
+	"unicode"
 )
 
 var ErrNotSupport = errors.New("only support insert []T or []*T")
@@ -25,6 +26,8 @@ func BatchInsert(db *sql.DB, rows interface{}) (result sql.Result, err error) {
 	}
 
 	sqlStr, values := genInsertSql(rows)
+	println(sqlStr)
+
 	//println(sqlStr)
 	stmt, err := db.Prepare(sqlStr)
 	if err != nil {
@@ -33,6 +36,76 @@ func BatchInsert(db *sql.DB, rows interface{}) (result sql.Result, err error) {
 	defer stmt.Close()
 
 	return stmt.Exec(values...)
+}
+
+func BatchDelete(db *sql.DB, rowKeys interface{}) (result sql.Result, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+
+	kind := reflect.TypeOf(rowKeys).Kind()
+	if kind != reflect.Slice {
+		return nil, ErrNotSupport
+	}
+
+	sqlStr, values := genDeleteSql(rowKeys)
+
+	println(sqlStr)
+	//println(sqlStr)
+	stmt, err := db.Prepare(sqlStr)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+
+	return stmt.Exec(values...)
+}
+
+func genDeleteSql(rows interface{}) (string, []interface{}) {
+
+	var (
+		column     string
+		table      string
+		values     = []interface{}{}
+		raw        = reflect.ValueOf(rows)
+		sql        = "DELETE FROM %s WHERE %s "
+	)
+
+	for i := 0; i < raw.Len(); i++ {
+		val := reflect.ValueOf(raw.Index(i).Interface())
+		for val.Kind() == reflect.Ptr {
+			val = val.Elem()
+		}
+
+		line := ""
+
+		if i > 0 {
+			line += " OR "
+		}
+
+		line += "("
+		tp := reflect.Indirect(val).Type()
+		if table == "" {
+			table = snake(tp.Name())
+		}
+		for i := 0; i < val.NumField(); i++ {
+			if i > 0 {
+				line += " AND "
+			}
+			fieldName := snake(tp.Field(i).Name)
+			line += utils.Ternary(strings.Compare(fieldName, "amount") == 0, "SIGN(" + fieldName + ")", fieldName) + " = ? "
+			values = append(values, val.Field(i).Interface())
+		}
+		line = strings.TrimSuffix(line, ",")
+		line += ") "
+		sql += line
+	}
+
+	sql = strings.TrimSuffix(sql, ",")
+	column = strings.TrimSuffix(column, ",")
+	return fmt.Sprintf(sql, table, column), values
 }
 
 func genInsertSql(rows interface{}) (string, []interface{}) {
