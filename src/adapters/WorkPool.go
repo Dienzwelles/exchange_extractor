@@ -140,7 +140,7 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 	workPool := workpool.New(8, 800)
 
 	shutdown = false // Race Condition, Sorry
-/*
+
 		go func() {
 
 			var a AdapterInterface
@@ -198,14 +198,14 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 			}
 
 			*/
-			/*
+
 
 			if shutdown == true {
 				return
 			}
 
 		}()
-*/
+
 	/*book section
 	  1 - get the list of the symbol for each exchange
 	  2 - generete a go routine for each symbol

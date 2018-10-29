@@ -215,6 +215,15 @@ func getMapKey(book models.AggregateBooks) string{
 	return str.String()
 }
 
+func convertToAggregateBooks(exchangeId string, bookUpdate *bitfinex.BookUpdate) models.AggregateBooks{
+	obsolete := bookUpdate.Action == bitfinex.BookRemoveEntry
+	amount := utils.TernaryFloat64(bookUpdate.Side == bitfinex.Ask, bookUpdate.Amount, -bookUpdate.Amount)
+	symbol := strings.ToUpper(bookUpdate.Symbol[1:len(bookUpdate.Symbol)])
+	ret := models.AggregateBooks{Exchange_id: exchangeId, Symbol: symbol, Price: bookUpdate.Price, Count_number: float64(bookUpdate.Count), Amount: amount, Lot: lastLotBTFV2, Obsolete: obsolete}
+
+	return ret
+}
+
 func waitBooksBTFV2(chanbook chan []models.AggregateBooks, chanchannel chan []float64, synch chan int, reset [] chan int, exchangeId string, symbol string, wssclient *websocket.Client){
 	//synch <- 1
 
@@ -239,12 +248,11 @@ func waitBooksBTFV2(chanbook chan []models.AggregateBooks, chanchannel chan []fl
 					//infos <- m
 				case *bitfinex.BookUpdateSnapshot:
 					//books <- m
-					//CONTROLLARE GESTIONE MAPPA! CONCATENARE Cross + Prezzo + Direzione!
 					for i := 0; i < len(m.Snapshot); i++{
 						log.Print("---------------------", m.Snapshot[i])
 						data := m.Snapshot[i]
-						amount := utils.TernaryFloat64(data.Side == bitfinex.Ask, data.Amount, -data.Amount)
-						aggregateBook := models.AggregateBooks{Exchange_id: exchangeId, Symbol: strings.ToUpper(data.Symbol), Price: data.Price, Count_number: float64(data.Count), Amount: amount, Lot: lastLotBTFV2, Obsolete: false}
+
+						aggregateBook := convertToAggregateBooks(exchangeId, data)
 						bookmapBTFV2.Store(getMapKey(aggregateBook), aggregateBook)
 						retChanbooks = append(retChanbooks, aggregateBook)
 					}
@@ -255,44 +263,13 @@ func waitBooksBTFV2(chanbook chan []models.AggregateBooks, chanchannel chan []fl
 					//books <- m
 					log.Print(m)
 
-					amount := utils.TernaryFloat64(m.Side == bitfinex.Ask, m.Amount, -m.Amount)
-					aggregateBook := models.AggregateBooks{Exchange_id: exchangeId, Symbol: strings.ToUpper(m.Symbol), Price: m.Price, Count_number: float64(m.Count), Amount: amount, Lot: lastLotBTFV2, Obsolete: false}
-
-					if m.Action == bitfinex.BookUpdateEntry {
-						bookmapBTFV2.Store(getMapKey(aggregateBook), aggregateBook)
-						aggregateBook.Obsolete = false
-					} else if m.Action == bitfinex.BookRemoveEntry {
-						bookmapBTFV2.Delete(getMapKey(aggregateBook))
-						aggregateBook.Obsolete = true
-					}
-
-					/*
-					if m.Action == bitfinex.BookUpdateEntry || m.Action == bitfinex.BookRemoveEntry {
-						retChanbooks := []models.AggregateBooks{}
-
-						bookmapBTFV2.Range(func(ki, vi interface{}) bool {
-							_, v := ki.(string), vi.(models.AggregateBooks)
-
-							v.Lot = lastLotBTFV2
-							retChanbooks = append(retChanbooks, v)
-
-							return true
-						})
-
-						log.Print("Lunghezza: ", len(retChanbooks))
-						chanbook <- retChanbooks
-						lastLotBTFV2++
-					}
-					*/
-
-					if m.Action == bitfinex.BookUpdateEntry || m.Action == bitfinex.BookRemoveEntry {
-						aggregateBook.Lot = lastLotBTFV2
-						retChanbooks = append(retChanbooks, aggregateBook)
-						chanbook <- retChanbooks
-						lastLotBTFV2++
-					}
+					aggregateBook := convertToAggregateBooks(exchangeId, m)
 
 
+					aggregateBook.Lot = lastLotBTFV2
+					retChanbooks = append(retChanbooks, aggregateBook)
+					chanbook <- retChanbooks
+					lastLotBTFV2++
 				default:
 					log.Print("test recv: %#v", msg)
 				}
@@ -457,7 +434,7 @@ func (ba BitfinexAdapter2) getTrade() [] chan []models.Trade {
 
 func (ba BitfinexAdapter2) getAggregateBooks() (chan []models.AggregateBooks, chan int) {
 
-	lastLotBTFV2 = datastorage.GetLastLot(ba.ExchangeId, ba.Symbol)
+	lastLotBTFV2 = 1//datastorage.GetLastLot(ba.ExchangeId, ba.Symbol)
 	//log.Println(ba.Symbol, lastLotBTFV2)
 	lastLotBTFV2++
 	//log.Println(ba.Symbol , lastLotBTFV2)

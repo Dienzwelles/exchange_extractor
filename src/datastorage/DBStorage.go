@@ -67,12 +67,12 @@ func StoreBooks(books []models.AggregateBooks){
 	db := GetConnectionORM(conn)
 	defer db.Close()
 	//get the last lot
-	//lastLot := books[0].Lot -1
+	lastLot := books[0].Lot -1
 
 	//set last lot as old
-	/*if lastLot>=1 {
-		setLotAsOld(db, books[0].Exchange_id, books[0].Symbol)
-	}*/
+	if lastLot == 1 {
+		clearBooks(db, books[0].Exchange_id)
+	}
 	//sqlcustom.
 
 	obsoleteBooks, newBooks, newBooksDelete  := spliceBooks(books)
@@ -121,7 +121,7 @@ func StoreBooks(books []models.AggregateBooks){
 			}
 			println("cancellati", rows, "da cancellare ", len(obsoleteBooks))
 			if int(rows) != len(obsoleteBooks){
-				print("pippo")
+				print("anomalia in fase di cancellazione")
 			}
 		}
 	}
@@ -247,7 +247,7 @@ func GetLastLot(exchange string, symbol string ) int64 {
 }
 
 
-func setLotAsOld(db *gorm.DB, exchange string, symbol string) {
+func clearBooks(db *gorm.DB, exchange string) {
 
 	//db.Table("aggregate_books").Debug().Where("exchange_id = ? and symbol = ? and lot = ?", exchange, strings.ToUpper(symbol), lot).UpdateColumn("obsolete", 1)
 	db.Where("exchange_id = ?", exchange).Delete(models.AggregateBook{})
