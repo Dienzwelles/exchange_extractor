@@ -18,6 +18,9 @@ import (
 	"sync"
 	"context"
 	"golang.org/x/sync/syncmap"
+	"github.com/bitfinexcom/bitfinex-api-go/v2/rest"
+	"path"
+	"net/url"
 )
 
 
@@ -510,6 +513,40 @@ func CheckBitfinexRecordBTFV2 (symbol string, time_last time.Time, quantity floa
 	}
 
 	return true
+}
+
+type Request struct {
+	RefURL  string                 // ref url
+	Data    map[string]interface{} // body data
+	Method  string                 // http method
+	Params  url.Values             // query parameters
+	Headers map[string]string
+}
+
+func GetTradesFromTS() (*bitfinex.TradeSnapshot, error){
+	s := rest.NewClient();
+	symbol := "tBTCUSD"
+	req := rest.NewRequestWithDataMethod(path.Join("trades", symbol, "hist"), map[string]interface{}{"start": nil, "end": nil, "limit": 10}, "GET")
+
+	raw, err := s.Request(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	dat := make([][]float64, 0)
+	for _, r := range raw {
+		if f, ok := r.([]float64); ok {
+			dat = append(dat, f)
+		}
+	}
+
+	os, err := bitfinex.NewTradeSnapshotFromRaw(symbol, dat)
+	if err != nil {
+		return nil, err
+	}
+	return os, nil
+
 }
 
 func (ba BitfinexAdapter2) executeArbitrage(arbitrage models.Arbitrage) bool  {
