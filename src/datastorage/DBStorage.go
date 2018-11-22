@@ -9,9 +9,9 @@ import (
 	_ "github.com/jinzhu/gorm"
 	_ "fmt"
 	"strings"
-	"github.com/jinzhu/gorm"
 	"../utils/sqlcustom"
 	"../utils"
+	"github.com/jinzhu/gorm"
 )
 
 type AggregateBooks struct {
@@ -246,6 +246,20 @@ func GetLastLot(exchange string, symbol string ) int64 {
 	return record.Lot
 }
 
+func AlignTrades(exchange string, alignTrades []models.Trade) {
+	conn := NewConnection()
+	db := GetConnectionORM(conn)
+	defer db.Close()
+
+	dbNative := db.DB()
+	sqlcustom.BatchInsertTable(dbNative, alignTrades, "extractor.trades_align")
+
+	sqlcustom.AlignTrades(dbNative)
+
+	//db.Table("aggregate_books").Debug().Where("exchange_id = ? and symbol = ? and lot = ?", exchange, strings.ToUpper(symbol), lot).UpdateColumn("obsolete", 1)
+	sqlcustom.ClearAlign(dbNative, "Bitfinex")
+
+}
 
 func clearBooks(db *gorm.DB, exchange string) {
 

@@ -13,6 +13,8 @@ import (
 	"../arbitrage"
 	_"bufio"
 	_"os"
+	"../datastorage"
+	"strconv"
 )
 
 var shutdown bool
@@ -33,8 +35,11 @@ func (mw *AdapterWork) DoWork(workRoutine int) {
 		go enqueueTrade(chantrades[i])
 	}
 
+	go doAlign()
+
 	for {
 		time.Sleep(1 * time.Second)
+
 		if shutdown == true {
 			return
 		}
@@ -54,6 +59,26 @@ func (mw *DataExtractorWork) DoWork(workRoutine int) {
 type AdapterBookWork struct {
 	Adapter AdapterInterface
 	WP *workpool.WorkPool
+}
+
+func doAlign() {
+	a := NewBitfinexAdapter2().instantiateDefault("BTCUSD")
+
+	start := ""
+	end := ""
+
+	for {
+		trades := a.getAlignTrades("BTCUSD", start, end, -1)
+
+		datastorage.AlignTrades("Bitfinex", trades)
+
+		lastTrade := trades[len(trades)-1]
+
+		print(lastTrade.Trade_ts.Unix())
+		start = strconv.FormatInt(int64(lastTrade.Trade_ts.Unix()), 10)
+		time.Sleep(2 * time.Second)
+	}
+
 }
 
 func enqueueTrade(chantrade chan []models.Trade){

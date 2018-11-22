@@ -33,6 +33,7 @@ var lastLotBTFV2Symbol string
 //var bookmapBTFV2 map[string]models.AggregateBooks
 var bookmapBTFV2 *syncmap.Map
 var waitSendBookBTFV2 bool
+var lastTradeAlignTSBTFV2 string
 
 const POSITIVE_AMOUNT  = "1"
 const NEGATIVE_AMOUNT = "0"
@@ -482,6 +483,101 @@ func (ba BitfinexAdapter2) instantiate(Symbol string, FetchSize int, ReloadInter
 	ba.AbstractAdapter = aa
 	return ba
 }
+/*
+func GetTradesFromTS() (*bitfinex.TradeSnapshot, error){
+	s := rest.NewClient();
+	symbol := "tBTCUSD"
+	req := rest.NewRequestWithDataMethod(path.Join("trades", symbol, "hist", "?limit="), map[string]interface{}{}, "GET")
+
+	raw, err := s.Request(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	dat := make([][]float64, 0)
+	for _, r := range raw {
+		if f, ok := r.([]float64); ok {
+			dat = append(dat, f)
+		}
+	}
+
+	os, err := bitfinex.NewTradeSnapshotFromRaw(symbol, dat)
+	if err != nil {
+		return nil, err
+	}
+	return os, nil
+
+}
+*/
+func (ba BitfinexAdapter2) getAlignTrades(symbol string, start string, end string, limit int) ([]models.Trade){
+	if limit <= 0 {
+		limit = 1000
+	}
+/*
+	var startInt interface{};
+	var endInt interface{};
+	endInt = nil
+	if start == ""{
+		startInt = nil
+	} else {
+		var err interface{}
+		startInt, err = strconv.ParseInt(start, 10, 64)
+
+		if err != nil {
+			startInt = nil
+		}
+	}
+*/
+
+	//start = utils.Ternary(start != "", start, lastTradeAlignTSBTFV2)
+
+	s := rest.NewClient()
+	symbol = "t"  + symbol
+
+	path := path.Join("trades", symbol, "hist")
+	path += "?start=" + start + "&end=" + end + "&limit=" + strconv.Itoa(limit) + utils.Ternary(start != "", "&sort=1", "")
+	print("path=", path)
+	req := rest.NewRequestWithDataMethod(path, map[string]interface{}{}, "GET")
+
+	raw, err := s.Request(req)
+
+	if err != nil {
+		println("Error on retrieving trades from Bitfinex2")
+		return nil
+	}
+
+	dat := make([][]float64, 0)
+	for _, r := range raw {
+		rcast := r.([]interface{})
+		row := make([]float64, 0)
+		for _, s := range rcast{
+			val := s.(float64)
+			row = append(row, val)
+		}
+
+		dat = append(dat, row)
+		// print(r.(type))
+	}
+
+	os, err := bitfinex.NewTradeSnapshotFromRaw(symbol, dat)
+	if err != nil {
+		println("Error on retrieving trades from Bitfinex2")
+		return nil
+	}
+
+	trades := os.Snapshot
+	var retTrades = []models.Trade{}
+	for _, el := range trades{
+		tid := strconv.FormatInt(el.ID, 10)
+		retTrade := models.Trade{Exchange_id: ba.ExchangeId, Symbol: el.Pair[1: len(el.Pair)],
+			Trade_ts: time.Unix(0, el.MTS * int64(time.Millisecond)), Amount: el.Amount, Price: el.Price,
+			Tid: tid}
+		retTrades = append(retTrades, retTrade)
+	}
+	return retTrades
+
+}
 
 
 func CheckBitfinexRecordBTFV2 (symbol string, time_last time.Time, quantity float64) bool {
@@ -521,32 +617,6 @@ type Request struct {
 	Method  string                 // http method
 	Params  url.Values             // query parameters
 	Headers map[string]string
-}
-
-func GetTradesFromTS() (*bitfinex.TradeSnapshot, error){
-	s := rest.NewClient();
-	symbol := "tBTCUSD"
-	req := rest.NewRequestWithDataMethod(path.Join("trades", symbol, "hist"), map[string]interface{}{"start": nil, "end": nil, "limit": 10}, "GET")
-
-	raw, err := s.Request(req)
-
-	if err != nil {
-		return nil, err
-	}
-
-	dat := make([][]float64, 0)
-	for _, r := range raw {
-		if f, ok := r.([]float64); ok {
-			dat = append(dat, f)
-		}
-	}
-
-	os, err := bitfinex.NewTradeSnapshotFromRaw(symbol, dat)
-	if err != nil {
-		return nil, err
-	}
-	return os, nil
-
 }
 
 func (ba BitfinexAdapter2) executeArbitrage(arbitrage models.Arbitrage) bool  {

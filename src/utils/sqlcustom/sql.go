@@ -12,8 +12,41 @@ import (
 
 var ErrNotSupport = errors.New("only support insert []T or []*T")
 
-// BatchInsert, rows should be []T or []*T
 func BatchInsert(db *sql.DB, rows interface{}) (result sql.Result, err error) {
+	return BatchInsertTable(db, rows, "")
+}
+
+func ClearAlign(db *sql.DB, exchangeId string) (result sql.Result, err error){
+	sqlStr := "DELETE FROM extractor.trades_align WHERE exchange_id = ?"
+
+	println(sqlStr)
+
+	//println(sqlStr)
+	stmt, err := db.Prepare(sqlStr)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+
+	return stmt.Exec(exchangeId)
+}
+
+func AlignTrades(db *sql.DB) (result sql.Result, err error) {
+	sqlStr := "INSERT INTO extractor.trades SELECT NULL, ALIGN.exchange_id, ALIGN.symbol, ALIGN.trade_ts, ALIGN.amount, ALIGN.price, ALIGN.rate, ALIGN.period, ALIGN.tid FROM extractor.trades_align ALIGN LEFT JOIN extractor.trades TRADES ON ALIGN.exchange_id = TRADES.exchange_id AND ALIGN.symbol = TRADES.symbol AND ALIGN.tid = TRADES.tid WHERE TRADES.id IS NULL"
+	println(sqlStr)
+
+	//println(sqlStr)
+	stmt, err := db.Prepare(sqlStr)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+
+	return stmt.Exec()
+}
+
+// BatchInsert, rows should be []T or []*T
+func BatchInsertTable(db *sql.DB, rows interface{}, table string) (result sql.Result, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", r)
@@ -25,7 +58,7 @@ func BatchInsert(db *sql.DB, rows interface{}) (result sql.Result, err error) {
 		return nil, ErrNotSupport
 	}
 
-	sqlStr, values := genInsertSql(rows)
+	sqlStr, values := genInsertSql(rows, table)
 	println(sqlStr)
 
 	//println(sqlStr)
@@ -108,12 +141,12 @@ func genDeleteSql(rows interface{}) (string, []interface{}) {
 	return fmt.Sprintf(sql, table, column), values
 }
 
-func genInsertSql(rows interface{}) (string, []interface{}) {
+func genInsertSql(rows interface{}, table string) (string, []interface{}) {
 
 	var (
 		column     string
 		needColumn = true
-		table      string
+		//table      string
 		values     = []interface{}{}
 		raw        = reflect.ValueOf(rows)
 		sql        = "INSERT INTO %s ( %s ) VALUES "
