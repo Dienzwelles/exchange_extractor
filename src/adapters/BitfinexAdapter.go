@@ -273,6 +273,9 @@ func (ba BitfinexAdapter) instantiate(Symbol string, FetchSize int, ReloadInterv
 	return ba
 }
 
+func (ba BitfinexAdapter) getAlignTrades(symbol string, start string, end string, limit int) ([]models.Trade){
+	return nil
+}
 
 func CheckBitfinexRecord (symbol string, time_last time.Time, quantity float64) bool {
 	conn := datastorage.NewConnection()

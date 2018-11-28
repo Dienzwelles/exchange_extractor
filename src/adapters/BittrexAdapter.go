@@ -36,11 +36,13 @@ func NewBittrexAdapter() AdapterInterface {
 	return BittrexAdapter{}
 }
 
-
-
 func AddItem(trades []models.Trade, item models.Trade) []models.Trade {
 	trades = append(trades, item)
 	return trades
+}
+
+func (ba BittrexAdapter) getAlignTrades(symbol string, start string, end string, limit int) ([]models.Trade){
+	return nil
 }
 
 func (ba BittrexAdapter) getTrade() [] chan []models.Trade {

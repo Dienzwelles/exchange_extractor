@@ -55,6 +55,9 @@ func NewOkexAdapter() AdapterInterface {
 	return OkexAdapter{}
 }
 
+func (ba OkexAdapter) getAlignTrades(symbol string, start string, end string, limit int) ([]models.Trade){
+	return nil
+}
 
 
 func OkexAddItem(trades []models.Trade, item models.Trade) []models.Trade {
