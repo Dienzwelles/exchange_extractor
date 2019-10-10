@@ -211,6 +211,65 @@ func BooksDequeue(startArbitrage chan string, waitArbitrage chan string){
 	<-forever
 }
 
+func MeasureEnqueue(measure models.MeasuresData){
+	conn := getConnection()
+
+	ch := getChannel(conn)
+	defer ch.Close()
+
+
+	q := getQueue(ch, "measures")
+	measure2B, _ := json.Marshal(measure)
+	body := string(measure2B)
+	err := ch.Publish(
+		"",     // exchange
+		q.Name, // routing key
+		true,  // mandatory
+		false,  // immediate
+		amqp.Publishing {
+			ContentType: "text/plain",
+			Body:        []byte(body),
+		})
+	failOnError(err, "Failed to publish a message type measures")
+}
+
+
+func MeasuresDequeue(){
+	conn := getConnection()
+
+	ch := getChannel(conn)
+	defer ch.Close()
+
+	q := getQueue(ch, "measures")
+
+	msgs, err := ch.Consume(
+		q.Name, // queue
+		"",     // consumer
+		true,   // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+	failOnError(err, "Failed to register a consumer for measures")
+
+	forever := make(chan bool)
+
+	go func() {
+		for d := range msgs {
+			//log.Printf("Received a message: %s", d.Body)
+			var measure models.MeasuresData
+			jsonErr := json.Unmarshal(d.Body, &measure)
+			if jsonErr != nil {
+				log.Fatal(jsonErr)
+			}
+
+			datastorage.StoreMeasures(measure)
+		}
+	}()
+	<-forever
+}
+
 func storeAndArbitrage(books []models.AggregateBooks, waitChan chan string, startArbitrage chan string, waitArbitrage chan string){
 	//t := time.Now()
 	//fmt.Println(t.Format("20060102150405"))

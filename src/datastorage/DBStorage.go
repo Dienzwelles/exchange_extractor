@@ -60,6 +60,10 @@ func StoreTrades(trades []models.Trade){
 	}
 }
 
+func StoreMeasures(measures models.MeasuresData) {
+
+}
+
 
 func StoreBooks(books []models.AggregateBooks){
 

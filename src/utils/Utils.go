@@ -25,3 +25,11 @@ func Ternary(test bool, a string, b string) string{
 
 	return b
 }
+
+func TernaryInt(test bool, a int64, b int64) int64{
+	if(test){
+		return a
+	}
+
+	return b
+}
