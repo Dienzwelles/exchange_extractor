@@ -3,7 +3,9 @@ package measure
 import (
 	"../models"
 	"../utils"
+	"encoding/json"
 	"math"
+	"log"
 )
 
 type Cluster struct {
@@ -78,16 +80,10 @@ func (m Measure) getUpdatedTick(trade models.Trade) []models.Trade {
 		}
 	}
 
-	return m.Measures
+	return m.Tick
 }
 
-func (m Measure) calculate() models.MeasuresData{
-	println(m.Exchange, " - ", m.Symbol)
-
-	return m.calculateMeasure()
-}
-
-func (m Measure) calculateTick() models.MeasureData{
+func (m Measure) calculateTick() models.Ticks{
 	deltaTickSlow := 0.0
 	deltaTickMedium := 0.0
 	deltaTickHigh := 0.0
@@ -131,26 +127,49 @@ func (m Measure) calculateTick() models.MeasureData{
 		}
 	}
 
+	var momentum = 0.0
 	if len(m.Tick) > 2 {
-		deltaTick := (m.Tick[0].Price - m.Tick[0].Price) / m.Tick[0].Price
+		deltaTick := (m.Tick[0].Price - m.Tick[1].Price) / m.Tick[0].Price
 		println("Delta Tick", deltaTick)
-		diff := m.Tick[0].Trade_ts.Sub(m.Tick[1].Trade_ts)
-		println("Tick Momentum", deltaTick / diff.Seconds())
+		diff := float64(m.Tick[0].Trade_ts.Unix() - m.Tick[1].Trade_ts.Unix()) / 1000.0
+
+		if diff == 0 {
+			momentum = -1
+		} else {
+			momentum = deltaTick / diff
+		}
+
+		println("Tick Momentum", momentum)
 	}
 
+	deltaTickSlow = utils.TernaryFloat64(sumCoeffSlow == 0.0, 0.0, deltaTickSlow / sumCoeffSlow)
+	deltaTickMedium = utils.TernaryFloat64(sumCoeffMedium == 0.0, 0.0, deltaTickMedium / sumCoeffMedium)
+	deltaTickHigh = utils.TernaryFloat64(sumCoeffHigh == 0.0, 0.0, deltaTickHigh / sumCoeffHigh)
+
+	priceSlow = utils.TernaryFloat64(sumCoeffSlow == 0.0, 0.0, priceSlow / sumCoeffSlow)
+	priceMedium = utils.TernaryFloat64(sumCoeffMedium == 0.0, 0.0, priceMedium / sumCoeffMedium)
+	priceHigh = utils.TernaryFloat64(sumCoeffHigh == 0.0, 0.0, priceHigh / sumCoeffHigh)
+
 	print("Tick --> ")
-	print(deltaTickSlow / sumCoeffSlow)
-	print(", ", deltaTickMedium / sumCoeffMedium)
-	println(", ", deltaTickHigh / sumCoeffHigh)
+	print(deltaTickSlow)
+	print(", ", deltaTickMedium)
+	println(", ", deltaTickHigh)
 
 	print("Price --> ")
-	print(priceSlow / sumCoeffSlow)
-	print(", ", priceMedium / sumCoeffMedium)
-	println(", ", priceHigh / sumCoeffHigh)
-	return models.MeasureData{/*tickSlow, tickMedium, tickHigh*/}
+	print(priceSlow)
+	print(", ", priceMedium)
+	println(", ", priceHigh)
+
+	//TODO Agganciare i tick direttamente a quando arrivano i dati!!! non su ciclo thread e seprarare tabelle a questo punto
+	if len(m.Tick) > 2 {
+		print("ciao")
+	}
+	//tickData := models.TickData{momentum,models.MeasureData{deltaTickSlow, deltaTickMedium, deltaTickHigh}}
+	return models.Ticks{0, m.Exchange, m.Symbol, momentum, deltaTickSlow, deltaTickMedium, deltaTickHigh}
 }
 //TODO REFACTOR
-func (m Measure) calculateMeasure() models.MeasuresData{
+func (m Measure) calculateMeasure() models.Measures{
+	println(m.Exchange, " - ", m.Symbol)
 	/*priceSlow := 0.0
 	priceMedium := 0.0
 	priceHigh := 0.0*/
@@ -227,26 +246,61 @@ func (m Measure) calculateMeasure() models.MeasuresData{
 		}
 	}
 
-	//println("Price ", priceSlow / sumCoeffSlow, ", ", priceMedium / sumCoeffMedium, ", ", priceHigh / sumCoeffHigh)
-	println("Trades ", tradeSlow / sumCoeffSlow, ", ", tradeMedium / sumCoeffMedium, ", ", tradeHigh / sumCoeffHigh)
-	println("Trades Positive ", positiveTradeSlow / sumCoeffSlow, ", ", positiveTradeMedium / sumCoeffMedium, ", ", positiveTradeHigh / sumCoeffHigh)
-	println("Trades Negative ", negativeTradeSlow / sumCoeffSlow, ", ", negativeTradeMedium / sumCoeffMedium, ", ", negativeTradeHigh / sumCoeffHigh)
-	println("Abs Amount ", absAmountSlow / sumCoeffSlow, ", ", absAmountMedium / sumCoeffMedium, ", ", absAmountHigh / sumCoeffHigh)
-	println("Amount/Abs ", (amountSlow / sumCoeffSlow) / (absAmountSlow / sumCoeffSlow), ", ", (amountMedium / sumCoeffMedium) / (absAmountMedium / sumCoeffMedium), ", ", (amountHigh / sumCoeffHigh) / (absAmountHigh / sumCoeffHigh))
-	println("Amount/Trade", (amountSlow / sumCoeffSlow) / (tradeSlow / sumCoeffSlow), ", ", (amountMedium / sumCoeffMedium) / (tradeMedium / sumCoeffMedium), ", ", (amountHigh / sumCoeffHigh) / (tradeHigh / sumCoeffHigh))
+	tradeSlow = utils.TernaryFloat64(sumCoeffSlow == 0.0, 0.0, tradeSlow / sumCoeffSlow)
+	tradeMedium = utils.TernaryFloat64(sumCoeffMedium == 0.0, 0.0, tradeMedium / sumCoeffMedium)
+	tradeHigh = utils.TernaryFloat64(sumCoeffHigh == 0.0, 0.0, tradeHigh / sumCoeffHigh)
 
-	var measureTick = m.calculateTick()
+	positiveTradeSlow = utils.TernaryFloat64(sumCoeffSlow == 0.0, 0.0, positiveTradeSlow / sumCoeffSlow)
+	positiveTradeMedium = utils.TernaryFloat64(sumCoeffMedium == 0.0, 0.0, positiveTradeMedium / sumCoeffMedium)
+	positiveTradeHigh = utils.TernaryFloat64(sumCoeffHigh == 0.0, 0.0, positiveTradeHigh / sumCoeffHigh)
+
+	negativeTradeSlow = utils.TernaryFloat64(sumCoeffSlow == 0.0, 0.0, negativeTradeSlow / sumCoeffSlow)
+	negativeTradeMedium = utils.TernaryFloat64(sumCoeffMedium == 0.0, 0.0, negativeTradeMedium / sumCoeffMedium)
+	negativeTradeHigh = utils.TernaryFloat64(sumCoeffHigh == 0.0, 0.0, negativeTradeHigh / sumCoeffHigh)
+
+	absAmountSlow = utils.TernaryFloat64(sumCoeffSlow == 0.0, 0.0, absAmountSlow / sumCoeffSlow)
+	absAmountMedium = utils.TernaryFloat64(sumCoeffMedium == 0.0, 0.0, absAmountMedium / sumCoeffMedium)
+	absAmountHigh = utils.TernaryFloat64(sumCoeffHigh == 0.0, 0.0, absAmountHigh / sumCoeffHigh)
+
+	var amountOnAbsSlow = utils.TernaryFloat64(sumCoeffSlow == 0.0 || absAmountSlow == 0.0, 0.0, (amountSlow / sumCoeffSlow) / (absAmountSlow / sumCoeffSlow))
+	var amountOnAbsMedium = utils.TernaryFloat64(sumCoeffMedium == 0.0 || absAmountMedium == 0.0, 0.0, (amountMedium / sumCoeffMedium) / (absAmountMedium / sumCoeffMedium))
+	var amountOnAbsHigh = utils.TernaryFloat64(sumCoeffHigh == 0.0 || absAmountHigh == 0.0, 0.0, (amountHigh / sumCoeffHigh) / (absAmountHigh / sumCoeffHigh))
+
+	var amountTradeSlow = utils.TernaryFloat64(sumCoeffSlow == 0.0 || tradeSlow == 0.0, 0.0, (amountSlow / sumCoeffSlow) / (tradeSlow / sumCoeffSlow))
+	var amountTradeMedium = utils.TernaryFloat64(sumCoeffMedium == 0.0 || tradeMedium == 0.0, 0.0, (amountMedium / sumCoeffMedium) / (tradeMedium / sumCoeffMedium))
+	var amountTradeHigh = utils.TernaryFloat64(sumCoeffHigh == 0.0 || tradeHigh == 0.0, 0.0, (amountHigh / sumCoeffHigh) / (tradeHigh / sumCoeffHigh))
+
+	//println("Price ", priceSlow / sumCoeffSlow, ", ", priceMedium / sumCoeffMedium, ", ", priceHigh / sumCoeffHigh)
+	println("Trades ", tradeSlow, ", ", tradeMedium, ", ", tradeHigh)
+	println("Trades Positive ", positiveTradeSlow, ", ", positiveTradeMedium, ", ", positiveTradeHigh)
+	println("Trades Negative ", negativeTradeSlow, ", ", negativeTradeMedium, ", ", negativeTradeHigh)
+	println("Abs Amount ", absAmountSlow, ", ", absAmountMedium, ", ", absAmountHigh)
+	println("Amount/Abs ", amountOnAbsSlow, ", ", amountOnAbsMedium, ", ", amountOnAbsHigh)
+	println("Amount/Trade", amountTradeSlow, ", ", amountTradeMedium, ", ", amountTradeHigh)
 
 	//var measurePrice = models.MeasureData{priceSlow / sumCoeffSlow, priceMedium / sumCoeffMedium, priceHigh / sumCoeffHigh}
-	var measureTrades = models.MeasureData{tradeSlow / sumCoeffSlow, tradeMedium / sumCoeffMedium, tradeHigh / sumCoeffHigh}
-	var measureNegativeTrades = models.MeasureData{positiveTradeSlow / sumCoeffSlow, positiveTradeMedium / sumCoeffMedium, positiveTradeHigh / sumCoeffHigh}
-	var measurePositiveTrades = models.MeasureData{negativeTradeSlow / sumCoeffSlow, negativeTradeMedium / sumCoeffMedium, negativeTradeHigh / sumCoeffHigh}
+	var measureTrades = models.MeasureData{tradeSlow, tradeMedium, tradeHigh}
+	var measureNegativeTrades = models.MeasureData{positiveTradeSlow, positiveTradeMedium, positiveTradeHigh}
+	var measurePositiveTrades = models.MeasureData{negativeTradeSlow, negativeTradeMedium, negativeTradeHigh}
 
-	var measureAbsAmount = models.MeasureData{absAmountSlow / sumCoeffSlow, absAmountMedium / sumCoeffMedium, absAmountHigh / sumCoeffHigh}
-	var measureAmountOnAbs = models.MeasureData{(amountSlow / sumCoeffSlow) / (absAmountSlow / sumCoeffSlow),(amountMedium / sumCoeffMedium) / (absAmountMedium / sumCoeffMedium), (amountHigh / sumCoeffHigh) / (absAmountHigh / sumCoeffHigh)}
-	var measureAmountOnTrade = models.MeasureData{(amountSlow / sumCoeffSlow) / (tradeSlow / sumCoeffSlow), (amountMedium / sumCoeffMedium) / (tradeMedium / sumCoeffMedium), (amountHigh / sumCoeffHigh) / (tradeHigh / sumCoeffHigh)}
+	var measureAbsAmount = models.MeasureData{absAmountSlow, absAmountMedium, absAmountHigh}
+	var measureAmountOnAbs = models.MeasureData{amountOnAbsSlow,amountOnAbsMedium, amountOnAbsHigh}
+	var measureAmountOnTrade = models.MeasureData{amountTradeSlow, amountTradeMedium, amountTradeHigh}
 
-	return models.MeasuresData{m.Exchange, m.Symbol,measureTick, models.MeasureData{}, measureTrades, measureNegativeTrades, measurePositiveTrades, measureAbsAmount, measureAmountOnAbs, measureAmountOnTrade}
+	ret := models.Measures{0,m.Exchange, m.Symbol,
+		measureTrades.Slow, measureTrades.Medium, measureTrades.High,
+		measureNegativeTrades.Slow, measureNegativeTrades.Medium, measureNegativeTrades.High,
+		measurePositiveTrades.Slow, measurePositiveTrades.Medium, measurePositiveTrades.High,
+		measureAbsAmount.Slow, measureAbsAmount.Medium, measureAbsAmount.High,
+		measureAmountOnAbs.Slow, measureAmountOnAbs.Medium, measureAmountOnAbs.High,
+		measureAmountOnTrade.Slow, measureAmountOnTrade.Medium, measureAmountOnTrade.High}
+	//return models.MeasuresData{m.Exchange, m.Symbol, measureTick.Momentum, measureTick.Ticks, measureTrades, measureNegativeTrades, measurePositiveTrades, measurePositiveTrades, measureAmountOnAbs, measureAmountOnTrade}
+
+	_, jsonErr := json.Marshal(ret)
+	if jsonErr != nil {
+		log.Fatal(jsonErr)
+	}
+	return ret
 }
 
 func min(x, y int) int {

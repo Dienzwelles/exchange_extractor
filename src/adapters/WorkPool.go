@@ -50,6 +50,22 @@ func (mw *AdapterWork) DoWork(workRoutine int) {
 
 }
 
+type TicksWork struct {
+	WP *workpool.WorkPool
+}
+
+func (mw *TicksWork) DoWork(workRoutine int) {
+	queuemanager.TicksDequeue()
+}
+
+type MeasureWork struct {
+	WP *workpool.WorkPool
+}
+
+func (mw *MeasureWork) DoWork(workRoutine int) {
+	queuemanager.MeasuresDequeue()
+}
+
 type DataExtractorWork struct {
 	WP *workpool.WorkPool
 }
@@ -182,6 +198,8 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 			}
 
 			dataExtractorWork := DataExtractorWork{}
+			measureWork := MeasureWork{}
+			ticksWork := TicksWork{}
 
 			if err := workPool.PostWork("adapterWork", &adapterWork); err != nil {
 				fmt.Printf("ERROR: %s\n", err)
@@ -190,6 +208,16 @@ func Instantiate(ch <-chan bool, exitMain chan<- bool) {
 
 			//		dataExtractorWork := DataExtractorWork{}
 			if err := workPool.PostWork("dataExtractorWork", &dataExtractorWork); err != nil {
+				fmt.Printf("ERROR: %s\n", err)
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			if err := workPool.PostWork("measureWork", &measureWork); err != nil {
+				fmt.Printf("ERROR: %s\n", err)
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			if err := workPool.PostWork("ticksWork", &ticksWork); err != nil {
 				fmt.Printf("ERROR: %s\n", err)
 				time.Sleep(100 * time.Millisecond)
 			}

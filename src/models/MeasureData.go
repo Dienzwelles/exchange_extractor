@@ -6,11 +6,17 @@ type MeasureData struct {
 	High float64
 }
 
+type TickData struct {
+	Momentum float64
+	Ticks MeasureData
+}
+
 type MeasuresData struct {
 	ExchangeId string
 	Symbol string
+	Momentum float64
 	Ticks MeasureData
-	Price MeasureData
+	//Price MeasureData
 	Trades MeasureData
 	NegativeTrades MeasureData
 	PositiveTrades MeasureData

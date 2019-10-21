@@ -211,7 +211,7 @@ func BooksDequeue(startArbitrage chan string, waitArbitrage chan string){
 	<-forever
 }
 
-func MeasureEnqueue(measure models.MeasuresData){
+func MeasureEnqueue(measures *models.Measures){
 	conn := getConnection()
 
 	ch := getChannel(conn)
@@ -219,7 +219,15 @@ func MeasureEnqueue(measure models.MeasuresData){
 
 
 	q := getQueue(ch, "measures")
-	measure2B, _ := json.Marshal(measure)
+
+	var measuresObj models.Measures
+	measuresObj = *measures
+
+	measure2B, jsonErr := json.Marshal(measuresObj)
+	if jsonErr != nil {
+		log.Fatal(jsonErr)
+	}
+
 	body := string(measure2B)
 	err := ch.Publish(
 		"",     // exchange
@@ -257,14 +265,81 @@ func MeasuresDequeue(){
 
 	go func() {
 		for d := range msgs {
-			//log.Printf("Received a message: %s", d.Body)
-			var measure models.MeasuresData
+
+			var measure models.Measures
 			jsonErr := json.Unmarshal(d.Body, &measure)
 			if jsonErr != nil {
 				log.Fatal(jsonErr)
 			}
 
 			datastorage.StoreMeasures(measure)
+		}
+	}()
+	<-forever
+}
+
+func TicksEnqueue(ticks *models.Ticks){
+	conn := getConnection()
+
+	ch := getChannel(conn)
+	defer ch.Close()
+
+
+	q := getQueue(ch, "ticks")
+
+	var ticksObj models.Ticks
+	ticksObj = *ticks
+
+	measure2B, jsonErr := json.Marshal(ticksObj)
+	if jsonErr != nil {
+		log.Fatal(jsonErr)
+	}
+
+	body := string(measure2B)
+	err := ch.Publish(
+		"",     // exchange
+		q.Name, // routing key
+		true,  // mandatory
+		false,  // immediate
+		amqp.Publishing {
+			ContentType: "text/plain",
+			Body:        []byte(body),
+		})
+	failOnError(err, "Failed to publish a message type measures")
+}
+
+
+func TicksDequeue(){
+	conn := getConnection()
+
+	ch := getChannel(conn)
+	defer ch.Close()
+
+	q := getQueue(ch, "ticks")
+
+	msgs, err := ch.Consume(
+		q.Name, // queue
+		"",     // consumer
+		true,   // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+	failOnError(err, "Failed to register a consumer for measures")
+
+	forever := make(chan bool)
+
+	go func() {
+		for d := range msgs {
+
+			var ticks models.Ticks
+			jsonErr := json.Unmarshal(d.Body, &ticks)
+			if jsonErr != nil {
+				log.Fatal(jsonErr)
+			}
+
+			datastorage.StoreTicks(ticks)
 		}
 	}()
 	<-forever

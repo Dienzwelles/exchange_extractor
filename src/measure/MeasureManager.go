@@ -6,6 +6,7 @@ import(
 	"time"
 	//"golang.org/x/sync/syncmap"
 	"../datastorage"
+	"../queuemanager"
 	"github.com/jinzhu/copier"
 	"strings"
 )
@@ -37,6 +38,9 @@ func UpdateData(trades []models.Trade){
 		 var measure = measureBitfinexMap[trade.Symbol]
 		 measure.Measures = measure.getUpdatedMeasure(trade)
 		 measure.Tick = measure.getUpdatedTick(trade)
+
+		var tickData = measure.calculateTick()
+		queuemanager.TicksEnqueue(&tickData)
 		//var measure, _ = measureBitfinexMapCast.Load(trade.Symbol)
 
 		/*
@@ -91,7 +95,8 @@ func CalculateExchange(measureMap map[string]*Measure){
 
 			lastMeasureExcMap[BITFINEX][key] = value.Measures[0]
 		}
-		/*var measures =*/ value.calculate()
+		var measureData = value.calculateMeasure()
+		queuemanager.MeasureEnqueue(&measureData)
 		//return true
 	}
 	//})

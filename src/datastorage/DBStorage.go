@@ -60,8 +60,58 @@ func StoreTrades(trades []models.Trade){
 	}
 }
 
-func StoreMeasures(measures models.MeasuresData) {
+func StoreTicks(ticksDb models.Ticks) {
+	conn := NewConnection()
+	db := GetConnectionORM(conn)
 
+	defer db.Close()
+
+	//db.LogMode(true)
+	// Migrate the schema
+
+	//db.AutoMigrate(&Trade{})
+
+	// Create
+
+	res2 := db.NewRecord(ticksDb)
+	dbe := db.Create(&ticksDb)
+
+	defer dbe.Close()
+
+	if res2{
+		//log.Print("insert new trade")
+	}
+
+	if dbe.Error != nil{
+		panic(dbe.Error)
+	}
+}
+
+func StoreMeasures(measuresDb models.Measures) {
+	conn := NewConnection()
+	db := GetConnectionORM(conn)
+
+	defer db.Close()
+
+	//db.LogMode(true)
+	// Migrate the schema
+
+	//db.AutoMigrate(&Trade{})
+
+	// Create
+
+	res2 := db.NewRecord(measuresDb)
+	dbe := db.Create(&measuresDb)
+
+	defer dbe.Close()
+
+	if res2{
+		//log.Print("insert new trade")
+	}
+
+	if dbe.Error != nil{
+		panic(dbe.Error)
+	}
 }
 
 

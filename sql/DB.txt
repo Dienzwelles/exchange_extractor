@@ -1,5 +1,3 @@
-CREATE INDEX trades_tid_idx ON extractor.trades (tid);
-
 CREATE TABLE extractor.trades (
 id BIGINT AUTO_INCREMENT NOT NULL,
 exchange_id CHAR(20) NOT NULL,
@@ -11,6 +9,8 @@ rate NUMERIC(28,10),
 period LONG,
 tid CHAR(20),
  CONSTRAINT PK_trades PRIMARY KEY (id));
+
+CREATE INDEX trades_tid_idx ON extractor.trades (exchange_id, tid);
 
 CREATE TABLE extractor.trades_align (
 id BIGINT AUTO_INCREMENT NOT NULL,
@@ -95,3 +95,37 @@ time_end TIMESTAMP NOT NULL,
 tid_end CHAR(20),
 amount_start NUMERIC(28,10) NOT NULL,
  CONSTRAINT PK_trades PRIMARY KEY (id));
+
+CREATE TABLE extractor.ticks (
+id BIGINT AUTO_INCREMENT NOT NULL,
+exchange_id CHAR(20) NOT NULL,
+symbol CHAR(20) NOT NULL,
+momentum NUMERIC(28,10) NOT NULL,
+ticks_slow NUMERIC(28,10) NOT NULL,
+ticks_medium NUMERIC(28,10) NOT NULL,
+ticks_high NUMERIC(28,10) NOT NULL,
+ CONSTRAINT PK_measures PRIMARY KEY (id));
+
+CREATE TABLE extractor.measures (
+id BIGINT AUTO_INCREMENT NOT NULL,
+exchange_id CHAR(20) NOT NULL,
+symbol CHAR(20) NOT NULL,
+trades_slow NUMERIC(28,10) NOT NULL,
+trades_medium NUMERIC(28,10) NOT NULL,
+trades_high NUMERIC(28,10) NOT NULL,
+negative_trades_slow NUMERIC(28,10) NOT NULL,
+negative_trades_medium NUMERIC(28,10) NOT NULL,
+negative_trades_high NUMERIC(28,10) NOT NULL,
+positive_trades_slow NUMERIC(28,10) NOT NULL,
+positive_trades_medium NUMERIC(28,10) NOT NULL,
+postive_trades_high NUMERIC(28,10) NOT NULL,
+abs_amount_slow NUMERIC(28,10) NOT NULL,
+abs_amount_medium NUMERIC(28,10) NOT NULL,
+abs_amount_high NUMERIC(28,10) NOT NULL,
+amount_on_abs_slow NUMERIC(28,10) NOT NULL,
+amount_on_abs_medium NUMERIC(28,10) NOT NULL,
+amount_on_abs_high NUMERIC(28,10) NOT NULL,
+amount_on_trade_slow NUMERIC(28,10) NOT NULL,
+amount_on_trade_medium NUMERIC(28,10) NOT NULL,
+amount_on_trade_high NUMERIC(28,10) NOT NULL,
+ CONSTRAINT PK_measures PRIMARY KEY (id));
