@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"math"
 	"log"
+	"time"
 )
 
 type Cluster struct {
@@ -134,7 +135,11 @@ func (m Measure) calculateTick() models.Ticks{
 		diff := float64(m.Tick[0].Trade_ts.Unix() - m.Tick[1].Trade_ts.Unix()) / 1000.0
 
 		if diff == 0 {
-			momentum = -1
+			if deltaTick == 0 {
+				momentum = 0
+			} else {
+				momentum = utils.TernaryFloat64(deltaTick >= 0, 999999999999999999, -999999999999999999)
+			}
 		} else {
 			momentum = deltaTick / diff
 		}
@@ -165,7 +170,7 @@ func (m Measure) calculateTick() models.Ticks{
 		print("ciao")
 	}
 	//tickData := models.TickData{momentum,models.MeasureData{deltaTickSlow, deltaTickMedium, deltaTickHigh}}
-	return models.Ticks{0, m.Exchange, m.Symbol, momentum, deltaTickSlow, deltaTickMedium, deltaTickHigh}
+	return models.Ticks{0, m.Exchange, m.Symbol, time.Now(),momentum, deltaTickSlow, deltaTickMedium, deltaTickHigh}
 }
 //TODO REFACTOR
 func (m Measure) calculateMeasure() models.Measures{
@@ -287,7 +292,7 @@ func (m Measure) calculateMeasure() models.Measures{
 	var measureAmountOnAbs = models.MeasureData{amountOnAbsSlow,amountOnAbsMedium, amountOnAbsHigh}
 	var measureAmountOnTrade = models.MeasureData{amountTradeSlow, amountTradeMedium, amountTradeHigh}
 
-	ret := models.Measures{0,m.Exchange, m.Symbol,
+	ret := models.Measures{0,m.Exchange, m.Symbol, time.Now(),
 		measureTrades.Slow, measureTrades.Medium, measureTrades.High,
 		measureNegativeTrades.Slow, measureNegativeTrades.Medium, measureNegativeTrades.High,
 		measurePositiveTrades.Slow, measurePositiveTrades.Medium, measurePositiveTrades.High,

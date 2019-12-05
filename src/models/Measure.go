@@ -1,9 +1,12 @@
 package models
 
+import "time"
+
 type Ticks struct {
 	Id int `gorm:"AUTO_INCREMENT"`
 	Exchange_id string
 	Symbol string
+	Tick_ts time.Time
 	Momentum float64
 	Ticks_slow float64
 	Ticks_medium float64
@@ -14,6 +17,7 @@ type Measures struct {
 	Id int `gorm:"AUTO_INCREMENT"`
 	Exchange_id string
 	Symbol string
+	Measure_ts time.Time
 	Trades_slow float64
 	Trades_medium float64
 	Trades_high float64
