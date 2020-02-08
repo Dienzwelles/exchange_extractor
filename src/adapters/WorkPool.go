@@ -15,7 +15,7 @@ import (
 	_"os"
 	"../datastorage"
 	"strconv"
-	"../measure"
+	//"../measure"
 )
 
 var shutdown bool
@@ -30,8 +30,8 @@ type AdapterWork struct {
 func (mw *AdapterWork) DoWork(workRoutine int) {
 	fmt.Printf("trades*******> WR: %d \n", workRoutine)
 
-	measure.InitMap()
-	measure.CreateCalcThread()
+	//measure.InitMap()
+	//measure.CreateCalcThread()
 	chantrades := mw.Adapter.getTrade()
 
 	for i := 0; i < len(chantrades); i++ {
@@ -104,7 +104,7 @@ func enqueueTrade(chantrade chan []models.Trade){
 	for {
 		data := <-chantrade
 
-		measure.UpdateData(data)
+		//measure.UpdateData(data)
 		queuemanager.Enqueue(data)
 	}
 }
