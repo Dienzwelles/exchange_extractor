@@ -172,7 +172,7 @@ func waitTradesBTFV2(chantrade chan []models.Trade, chanchannel chan []float64, 
 					log.Println(m)
 					tid := strconv.FormatInt(m.ID, 10)
 					model := []models.Trade{models.Trade{Exchange_id: exchangeId, Symbol: m.Pair[1: len(m.Pair)],
-						Trade_ts: time.Unix(0, m.MTS * int64(time.Millisecond)), Amount: m.Amount, Price: m.Price,
+						Trade_ts: time.Unix(0, m.MTS * int64(time.Millisecond)), Insert_ts: time.Now() ,Amount: m.Amount, Price: m.Price,
 						Tid: tid}}
 					log.Print("model")
 					log.Print(model)
