@@ -7,6 +7,7 @@ type Trade struct {
 	Exchange_id string
 	Symbol string
 	Trade_ts time.Time
+	Insert_ts time.Time
 	Amount float64
 	Price float64
 	Rate float64
