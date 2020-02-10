@@ -3,14 +3,17 @@ package main
 import (
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	_ "github.com/go-sql-driver/mysql"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"./adapters"
 	"./exchanges"
 	"./services"
+
 
 	"time"
 	"fmt"
 	//"./utils/sqlcustom"
 	//"./models"
+	"log"
 )
 
 type BitfinexTrade struct {
@@ -25,6 +28,21 @@ type BitfinexTrade struct {
 func main() {
 
 	//adapters.GetTradesFromTS()
+/*
+	file, err := os.OpenFile("/home/marcob/log/log.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer file.Close()
+*/
+
+	log.SetOutput(&lumberjack.Logger{
+		Filename:   "../log/log.log",
+		MaxSize:    5,  // megabytes after which new file is created
+		MaxBackups: 30,  // number of backups
+		MaxAge:     28, //days
+	})
 
 	exchanges.Instantiate()
 	//adapters.Instantiate()
