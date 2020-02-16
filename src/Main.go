@@ -3,7 +3,6 @@ package main
 import (
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	_ "github.com/go-sql-driver/mysql"
-	"gopkg.in/natefinch/lumberjack.v2"
 	"./adapters"
 	"./exchanges"
 	"./services"
@@ -13,7 +12,9 @@ import (
 	"fmt"
 	//"./utils/sqlcustom"
 	//"./models"
+	//"log"
 	"log"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type BitfinexTrade struct {
