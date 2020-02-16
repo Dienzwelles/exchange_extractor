@@ -53,7 +53,8 @@ func subscribeBooksBTFV2(chanchannels [] chan []float64, synchs [] chan int, sym
 	wg := sync.WaitGroup{}
 	wg.Add(3) // 1. Info with version, 2. Subscription event, 3. 3 x data message
 
-	ctx, cxl := context.WithTimeout(context.Background(), time.Second*500)
+	//timeout now + 10 years
+	ctx, cxl := context.WithTimeout(context.Background(), time.Hour*87600)
 	defer cxl()
 
 	for i := 0; i < len(symbols); i++ {
@@ -74,7 +75,9 @@ func subscribeTradesBTFV2(chanchannels [] chan []float64, synchs [] chan int, sy
 	wg := sync.WaitGroup{}
 	wg.Add(3) // 1. Info with version, 2. Subscription event, 3. 3 x data message
 
-	ctx, cxl := context.WithTimeout(context.Background(), time.Second*500)
+	//timeout now + 10 years
+	ctx, cxl := context.WithTimeout(context.Background(), time.Hour*87600)
+
 	defer cxl()
 
 	/*
