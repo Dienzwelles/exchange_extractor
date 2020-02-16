@@ -353,6 +353,7 @@ func (ba BitfinexAdapter2) instantiateBooks(symbols []string, chanbook chan []mo
 			synchs = append(synchs, make(chan int))
 		}
 
+		/*
 		param := &websocket.Parameters{AutoReconnect  : true,
 			ReconnectInterval : time.Duration(18000)*time.Second,
 			ReconnectAttempts : 10,
@@ -361,8 +362,8 @@ func (ba BitfinexAdapter2) instantiateBooks(symbols []string, chanbook chan []mo
 
 			HeartbeatTimeout : time.Duration(5)*time.Second,
 			ResubscribeOnReconnect : true}
-
-		wssclient := websocket.NewWithParams(param)
+		*/
+		wssclient := websocket.New() //NewWithParams(param)
 		err := wssclient.Connect()
 		if err != nil {
 			log.Fatal("Error connecting to web socket : ", err)
@@ -431,6 +432,7 @@ func (ba BitfinexAdapter2) getTrade() [] chan []models.Trade {
 		chantrades = append(chantrades, make(chan []models.Trade))
 	}
 
+	/*
 	param := &websocket.Parameters{AutoReconnect  : true,
 		ReconnectInterval : time.Duration(18000)*time.Second,
 		ReconnectAttempts : 10,
@@ -439,8 +441,8 @@ func (ba BitfinexAdapter2) getTrade() [] chan []models.Trade {
 
 		HeartbeatTimeout : time.Duration(5)*time.Second,
 		ResubscribeOnReconnect : true}
-
-	wssclient := websocket.NewWithParams(param)
+	*/
+	wssclient := websocket.New() //NewWithParams(param)
 	err := wssclient.Connect()
 	if err != nil {
 		log.Fatal("Error connecting to web socket : ", err)
